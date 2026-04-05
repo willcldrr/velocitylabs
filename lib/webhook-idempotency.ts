@@ -16,9 +16,23 @@
  * from server code.
  */
 
+import { createHash } from "crypto"
 import { createClient, type SupabaseClient } from "@supabase/supabase-js"
 
-export type WebhookSource = "stripe" | "twilio" | "instagram" | "telegram"
+// LB-4: `WebhookSource` was a closed union but we now namespace Stripe into
+// `"stripe:bookings"`, `"stripe:dashboard"`, `"stripe:payments"` so the two
+// Stripe webhook routes don't race on the same Stripe `event.id`. Widen to
+// `string` (with the historical literals kept for documentation and IDE hints)
+// rather than maintaining a churny union.
+export type WebhookSource =
+  | "stripe"
+  | "stripe:bookings"
+  | "stripe:dashboard"
+  | "stripe:payments"
+  | "twilio"
+  | "instagram"
+  | "telegram"
+  | (string & {})
 
 export interface ClaimResult {
   /** True if THIS delivery won the race and should process the event. */
@@ -54,13 +68,30 @@ function getServiceClient(): SupabaseClient {
 export async function claimWebhookEvent(
   source: WebhookSource,
   eventId: string,
-  eventType?: string
+  eventType?: string,
+  fallbackBody?: string
 ): Promise<ClaimResult> {
+  // R-15: if no provider-assigned id was supplied, we previously returned
+  // `{ claimed: true }` without recording anything, which silently re-ran
+  // every retry. Callers that can pass a `fallbackBody` (the raw request body
+  // or a canonical preview) now get a stable sha256(source|body) synthetic id
+  // so retries dedupe. Callers without access still fall open, but we log
+  // loudly so Wave 2-D (LB-7) can surface it to Sentry.
   if (!eventId) {
-    // No provider id = we cannot dedupe. Fail safe by treating as claimed and
-    // log loudly so ops can investigate why an event arrived without an id.
-    console.warn(`[webhook-idempotency] ${source} event arrived without event_id; cannot dedupe`)
-    return { claimed: true }
+    if (fallbackBody) {
+      const hash = createHash("sha256")
+        .update(source)
+        .update("|")
+        .update(fallbackBody)
+        .digest("hex")
+      eventId = `fallback:${hash}`
+    } else {
+      console.warn(
+        "[webhook-idempotency] fail-open: no eventId for source=",
+        source
+      ) // TODO(LB-7)
+      return { claimed: true }
+    }
   }
 
   const supabase = getServiceClient()

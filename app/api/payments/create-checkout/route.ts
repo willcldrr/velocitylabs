@@ -6,6 +6,7 @@ import { createClient } from "@supabase/supabase-js"
 import { z } from "zod"
 import { applyRateLimit } from "@/lib/api-rate-limit"
 import { decrypt } from "@/lib/crypto"
+import { SUPPORTED_CURRENCIES, DEFAULT_CURRENCY } from "@/lib/currency"
 
 const paymentCheckoutSchema = z.object({
   leadId: z.string().uuid("Invalid lead ID"),
@@ -151,6 +152,32 @@ export async function POST(request: NextRequest) {
     const depositPercentage = aiSettings?.deposit_percentage || 25
     const depositAmount = totalAmount * depositPercentage / 100
 
+    // LB-12: resolve currency. Try the business row for this tenant
+    // (businesses.currency is added by migration 20260405140100); fall back
+    // to DEFAULT_CURRENCY from env/lib if the column isn't live yet or the
+    // row doesn't exist.
+    let businessCurrencyRaw: string | undefined
+    try {
+      const { data: bizRow } = await supabase
+        .from("businesses")
+        .select("currency")
+        .eq("owner_user_id", lead.user_id)
+        .maybeSingle()
+      businessCurrencyRaw = (bizRow as { currency?: string } | null)?.currency
+    } catch {
+      // Column may not exist yet — swallow and use env fallback.
+    }
+    const envDefault = (process.env.DEFAULT_CURRENCY || DEFAULT_CURRENCY).toUpperCase()
+    let resolvedCurrency = (businessCurrencyRaw || envDefault).toUpperCase()
+    if (!SUPPORTED_CURRENCIES[resolvedCurrency]) {
+      console.warn("[checkout] unsupported currency, falling back to usd", {
+        businessId: lead.user_id,
+        currency: resolvedCurrency,
+      }) // TODO(LB-7)
+      resolvedCurrency = "USD"
+    }
+    const stripeCurrency = resolvedCurrency.toLowerCase()
+
     // Get the base URL for redirects
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || request.headers.get("origin") || "http://localhost:3000"
 
@@ -168,11 +195,14 @@ export async function POST(request: NextRequest) {
         customer_name: customerName || "",
         total_amount: totalAmount.toString(),
         deposit_amount: depositAmount.toString(),
+        // LB-12: downstream webhook (payments/webhook) reads this to pass
+        // into confirm_booking_and_lead so bookings.currency is persisted.
+        currency: resolvedCurrency,
       },
       line_items: [
         {
           price_data: {
-            currency: "usd",
+            currency: stripeCurrency,
             product_data: {
               name: `Deposit: ${vehicle.year} ${vehicle.make} ${vehicle.model}`,
               description: `Rental from ${startDate} to ${endDate} (${days} day${days > 1 ? "s" : ""})`,

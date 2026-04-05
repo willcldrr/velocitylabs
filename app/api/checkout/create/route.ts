@@ -5,6 +5,7 @@ import { createClient } from "@supabase/supabase-js"
 import { lookupPaymentToken, decodePaymentToken, claimPaymentLinkForCheckout } from "@/lib/payment-link"
 import { applyRateLimit } from "@/lib/api-rate-limit"
 import { decrypt } from "@/lib/crypto"
+import { SUPPORTED_CURRENCIES, DEFAULT_CURRENCY } from "@/lib/currency"
 
 const checkoutSchema = z.object({
   token: z.string().min(1, "Payment token is required").max(500, "Invalid token"),
@@ -128,6 +129,33 @@ export async function POST(request: NextRequest) {
     const successUrl = `${origin}/checkout/success?session_id={CHECKOUT_SESSION_ID}`
     const cancelUrl = `${origin}/checkout/${token}`
 
+    // LB-12: resolve currency from the tenant's business row. Falls back to
+    // env default if the businesses.currency column isn't live yet.
+    let businessCurrencyRaw: string | undefined
+    if (paymentData.userId) {
+      try {
+        const supabase = getSupabaseClient()
+        const { data: bizRow } = await supabase
+          .from("businesses")
+          .select("currency")
+          .eq("owner_user_id", paymentData.userId)
+          .maybeSingle()
+        businessCurrencyRaw = (bizRow as { currency?: string } | null)?.currency
+      } catch {
+        // Column may not exist yet — use env fallback.
+      }
+    }
+    const envDefault = (process.env.DEFAULT_CURRENCY || DEFAULT_CURRENCY).toUpperCase()
+    let resolvedCurrency = (businessCurrencyRaw || envDefault).toUpperCase()
+    if (!SUPPORTED_CURRENCIES[resolvedCurrency]) {
+      console.warn("[checkout] unsupported currency, falling back to usd", {
+        businessId: paymentData.userId,
+        currency: resolvedCurrency,
+      }) // TODO(LB-7)
+      resolvedCurrency = "USD"
+    }
+    const stripeCurrency = resolvedCurrency.toLowerCase()
+
     // Create Stripe checkout session
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ["card"],
@@ -136,7 +164,7 @@ export async function POST(request: NextRequest) {
       line_items: [
         {
           price_data: {
-            currency: "usd",
+            currency: stripeCurrency,
             product_data: {
               name: `${paymentData.vehicleName} Rental Deposit`,
               description: `${paymentData.startDate} to ${paymentData.endDate} | Total rental: $${paymentData.totalAmount.toLocaleString()}`,
@@ -158,6 +186,8 @@ export async function POST(request: NextRequest) {
         customer_name: paymentData.customerName,
         total_amount: paymentData.totalAmount.toString(),
         deposit_amount: paymentData.depositAmount.toString(),
+        // LB-12: propagate to payments/webhook for bookings.currency.
+        currency: resolvedCurrency,
         // Additional fields for reference
         paymentToken: token,
         vehicleName: paymentData.vehicleName,

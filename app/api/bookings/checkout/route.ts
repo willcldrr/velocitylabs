@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import Stripe from "stripe"
 import { createClient } from "@supabase/supabase-js"
 import { applyRateLimit } from "@/lib/api-rate-limit"
+import { SUPPORTED_CURRENCIES, DEFAULT_CURRENCY } from "@/lib/currency"
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2026-02-25.clover",
@@ -49,12 +50,28 @@ export async function POST(request: NextRequest) {
 
     const origin = request.headers.get("origin") || process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000"
 
+    // LB-12: resolve currency. The `businesses.currency` column is added by
+    // migration 20260405140100_businesses_currency.sql — until that's applied
+    // (or until this route is widened to JOIN businesses), fall back to
+    // DEFAULT_CURRENCY from env / lib/currency.ts.
+    const bookingCurrencyRaw = (booking as { currency?: string }).currency
+    const envDefault = (process.env.DEFAULT_CURRENCY || DEFAULT_CURRENCY).toUpperCase()
+    let resolvedCurrency = (bookingCurrencyRaw || envDefault).toUpperCase()
+    if (!SUPPORTED_CURRENCIES[resolvedCurrency]) {
+      console.warn("[checkout] unsupported currency, falling back to usd", {
+        bookingId,
+        currency: resolvedCurrency,
+      }) // TODO(LB-7)
+      resolvedCurrency = "USD"
+    }
+    const stripeCurrency = resolvedCurrency.toLowerCase()
+
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ["card"],
       line_items: [
         {
           price_data: {
-            currency: "usd",
+            currency: stripeCurrency,
             product_data: {
               name: `Rental Deposit - ${vehicleName}`,
               description: `${startDate} to ${endDate}`,

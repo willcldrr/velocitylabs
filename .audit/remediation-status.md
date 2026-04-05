@@ -12,16 +12,16 @@ Legend: `[ ] PENDING` · `[~] IN PROGRESS` · `[✓] DONE` · `[!] BLOCKED`
 |----|--------|------|-------|
 | LB-2 | [✓] | /api/admin/restore-session lateral takeover (caller==target, audit log) | W2-A |
 | LB-3 | [✓] | Instagram OAuth `state`-as-userId hijack (resolve user from session) | W2-A |
-| LB-4 | [ ] | Collapse/namespace Stripe webhooks; IG+TG idempotency | W2-B |
+| LB-4 | [✓] | Collapse/namespace Stripe webhooks; IG+TG idempotency | W2-B |
 | LB-5a | [✓] | Postgres EXCLUDE USING gist on bookings (vehicle × daterange) | W1-B |
-| LB-5b | [ ] | Post-payment multi-step mutation → Postgres RPC transaction | W2-B |
+| LB-5b | [✓] | Post-payment multi-step mutation → Postgres RPC transaction | W2-B |
 | LB-6 | [✓] | Encrypt per-tenant Stripe keys, IG tokens; hash api_keys | W1-A |
 | LB-7 | [ ] | Structured logger + Sentry wiring; redact 245 console.* | W2-D |
-| LB-8 | [ ] | Stripe webhook 500 on internal errors; Sentry capture | W2-B |
+| LB-8 | [✓] | Stripe webhook 500 on internal errors; Sentry capture | W2-B |
 | LB-9 | [ ] | safe-fetch SSRF hardening + fetch timeouts everywhere | W2-C |
 | LB-10 | [ ] | Replace in-memory rate limiter with shared store | W2-C |
 | LB-11 | [✓] | OTP brute-force: failed_attempts, lockout, TTL, composite key | W2-A |
-| LB-12 | [ ] | Thread currency through 4 Stripe checkout routes | W2-B |
+| LB-12 | [✓] | Thread currency through 4 Stripe checkout routes | W2-B |
 
 ## High-priority findings (from domain reports)
 
@@ -50,7 +50,7 @@ Legend: `[ ] PENDING` · `[~] IN PROGRESS` · `[✓] DONE` · `[!] BLOCKED`
 - [ ] R-12 — post-payment confirmation send has no retry/pending queue
 - [ ] R-13 — AI-failure overwrites lead.status
 - [ ] R-14 — findOrCreateLead no unique constraint backing
-- [ ] R-15 — webhook-idempotency fail-open on missing event id
+- [✓] R-15 — webhook-idempotency fail-open on missing event id (W2-B: sha256(source|body) fallback when caller passes `fallbackBody`; legacy callers still fail-open with TODO(LB-7) warn)
 - [ ] R-17 — module-scope service-role clients crash cold start on missing env
 - [ ] R-18 — pageIdCache never invalidates on 4xx
 - [ ] R-19 — parseInstagramWebhook swallows errors
@@ -90,3 +90,6 @@ Legend: `[ ] PENDING` · `[~] IN PROGRESS` · `[✓] DONE` · `[!] BLOCKED`
 - **Conservative scope.** No refactors beyond what each finding requires. Renames are avoided.
 - **No cross-agent messaging primitives available.** Waves are sequenced by the main loop, not by agent-to-agent SendMessage.
 - **LB-11 rate-limit wrapper (W2-A).** `lib/auth-rate-limit.ts` computes `sha256(email+'|'+ip)` and delegates to the existing in-memory `applyRateLimit`. Backend is still the in-memory Map from `lib/rate-limit.ts` pending W2-C (LB-10); when W2-C swaps the store, this helper keeps working with no changes. A `TODO(LB-10)` marker is left in the wrapper.
+- **LB-4 Stripe namespacing (W2-B).** Two Stripe webhook routes remain in place; `app/api/stripe-webhook` claims `"stripe:bookings"`, `app/api/payments/webhook` claims `"stripe:payments"`. **Human operator step required:** Stripe dashboard must deliver `checkout.session.completed` to BOTH endpoint URLs so each half of the business logic (booking_deposit vs IG/SMS flow) still runs. This cannot be verified from code.
+- **LB-5b RPC (W2-B).** Migration `20260405140000_confirm_booking_rpc.sql` defines `confirm_booking_and_lead(...)`. Signature took 15 params (not 13 from the audit draft) because (a) `p_lead_id` is nullable to match the existing flow where IG/SMS checkouts sometimes lack a lead, (b) `p_stripe_payment_intent` is needed (booking row persists it), (c) `p_lead_notes` lets the caller override the lead's `notes` column without a second round-trip. Column-name audit: `bookings.total_amount`, `bookings.deposit_amount`, `bookings.deposit_paid`, `bookings.stripe_session_id`, `bookings.stripe_payment_intent`, `bookings.customer_{name,email,phone}`, `bookings.currency` — all verified against `20260319_bookings_lead_id.sql`, `20260405120203_retroactive_bookings_stripe_columns.sql`, and the existing `.insert({...})` shape at `app/api/payments/webhook/route.ts:219`. `messages` columns verified against `lib/sms-ai.ts:682` (`user_id, lead_id, content, direction`).
+- **LB-12 currency (W2-B).** Neither `businesses` nor `bookings` had a `currency` column before this wave — confirmed by grep over `supabase/migrations/*.sql` (zero matches). Migration `20260405140100_businesses_currency.sql` adds `currency TEXT NOT NULL DEFAULT 'USD'` with an ISO-4217 regex CHECK to both tables. Until that migration is applied, the 4 checkout routes fall back to `process.env.DEFAULT_CURRENCY || 'USD'` via `lib/currency.ts` `DEFAULT_CURRENCY`. `app/api/payments/create-checkout` and `app/api/checkout/create` and `app/api/create-checkout` also now attempt to `SELECT businesses.currency WHERE owner_user_id = ?` (wrapped in try/catch so pre-migration deploys don't crash on unknown-column errors). `app/api/bookings/checkout` reads an optional `currency` field off the `bookings` row. All 4 routes lowercase the code for Stripe and validate against `SUPPORTED_CURRENCIES`, logging and falling back to `usd` on anything unsupported.

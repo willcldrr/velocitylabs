@@ -16,6 +16,7 @@ import {
 import { findOrCreateInstagramLead, isInstagramAIEnabled } from "@/lib/instagram-leads"
 import { applyRateLimit } from "@/lib/api-rate-limit"
 import { decrypt } from "@/lib/crypto"
+import { claimWebhookEvent } from "@/lib/webhook-idempotency"
 
 function getSupabase() {
   return createClient(
@@ -175,6 +176,23 @@ async function processInstagramMessage(webhookBody: any): Promise<void> {
   const message = parseInstagramWebhook(webhookBody)
 
   if (!message) {
+    return
+  }
+
+  // LB-4 / R-2: idempotency. Meta retries on non-2xx AND on timeout, and
+  // because this handler is detached from the HTTP response with
+  // `.catch(() => {})`, a retry can overlap the original run and cause
+  // duplicate leads, duplicate AI cost, and duplicate replies. `message.mid`
+  // is globally unique per Instagram message. Short-circuit on !claimed.
+  // We pass the raw webhook body as fallback so R-15's hash-dedupe kicks in
+  // on the rare payload shapes that lack a `mid` (e.g. reactions).
+  const claim = await claimWebhookEvent(
+    "instagram",
+    message.messageId || "",
+    "dm.inbound",
+    JSON.stringify(webhookBody)
+  )
+  if (!claim.claimed) {
     return
   }
 

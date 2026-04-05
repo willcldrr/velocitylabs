@@ -6,6 +6,7 @@ import {
   getUserByChatId,
 } from "@/lib/telegram-bot-ai"
 import { applyRateLimit } from "@/lib/api-rate-limit"
+import { claimWebhookEvent } from "@/lib/webhook-idempotency"
 
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN
 
@@ -86,6 +87,19 @@ export async function POST(request: NextRequest) {
 
   try {
     const update: TelegramUpdate = await request.json()
+
+    // LB-4 / R-3: idempotency. Telegram retries on timeout, and without a
+    // claim the bot will run its AI tool-calls (update_vehicle_status,
+    // create_booking, …) twice on every redelivery. `update_id` is
+    // monotonically increasing and unique per bot.
+    const claim = await claimWebhookEvent(
+      "telegram",
+      String(update.update_id),
+      update.message ? "message" : "other"
+    )
+    if (!claim.claimed) {
+      return NextResponse.json({ ok: true, duplicate: true })
+    }
 
     // Only process text messages
     if (!update.message?.text) {

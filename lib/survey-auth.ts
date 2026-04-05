@@ -79,23 +79,24 @@ export async function resolveSurveyOrApiKey(
     // the plaintext `key` column using a constant-time comparison.
     const keyHash = hashApiKey(apiKey)
 
-    let keyData: {
+    type ApiKeyRow = {
       id: string
       user_id: string
       is_active: boolean
       domain: string | null
       key: string | null
       key_hash: string | null
-    } | null = null
+    }
+    let keyData: ApiKeyRow | null = null
 
     const { data: hashMatch } = await supabase
       .from("api_keys")
       .select("id, user_id, is_active, domain, key, key_hash")
       .eq("key_hash", keyHash)
-      .single()
+      .single<ApiKeyRow>()
 
     if (hashMatch) {
-      keyData = hashMatch as typeof keyData
+      keyData = hashMatch
     } else {
       // Legacy fallback: row has no key_hash yet. Fetch by plaintext and
       // compare with timingSafeEqual (not `===`) to avoid timing leaks.
@@ -103,13 +104,13 @@ export async function resolveSurveyOrApiKey(
         .from("api_keys")
         .select("id, user_id, is_active, domain, key, key_hash")
         .eq("key", apiKey)
-        .single()
+        .single<ApiKeyRow>()
 
       if (legacyMatch && legacyMatch.key) {
         const a = Buffer.from(apiKey, "utf8")
         const b = Buffer.from(legacyMatch.key, "utf8")
         if (a.length === b.length && timingSafeEqual(a, b)) {
-          keyData = legacyMatch as typeof keyData
+          keyData = legacyMatch
         }
       }
     }
