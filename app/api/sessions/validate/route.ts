@@ -4,7 +4,7 @@ import { applyRateLimit } from '@/lib/api-rate-limit'
 
 // GET - Validate if a session token is still active
 export async function GET(request: NextRequest) {
-  const limited = applyRateLimit(request, { limit: 60, window: 60 })
+  const limited = await applyRateLimit(request, { limit: 60, window: 60 })
   if (limited) return limited
 
   const supabase = await createClient()

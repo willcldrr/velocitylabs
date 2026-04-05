@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server"
+import { safeFetch } from "@/lib/safe-fetch"
 
 interface GoogleCalendarEvent {
   id?: string
@@ -67,7 +68,7 @@ export class GoogleCalendarClient {
     }
 
     try {
-      const response = await fetch("https://oauth2.googleapis.com/token", {
+      const response = await safeFetch("https://oauth2.googleapis.com/token", {
         method: "POST",
         headers: {
           "Content-Type": "application/x-www-form-urlencoded",
@@ -78,6 +79,7 @@ export class GoogleCalendarClient {
           refresh_token: this.refreshToken,
           grant_type: "refresh_token",
         }),
+        timeoutMs: 30_000,
       })
 
       if (!response.ok) {
@@ -127,19 +129,20 @@ export class GoogleCalendarClient {
     await this.ensureValidToken()
 
     const url = `https://www.googleapis.com/calendar/v3${endpoint}`
-    const options: RequestInit = {
+    const options: RequestInit & { timeoutMs?: number } = {
       method,
       headers: {
         Authorization: `Bearer ${this.accessToken}`,
         "Content-Type": "application/json",
       },
+      timeoutMs: 15_000,
     }
 
     if (body) {
       options.body = JSON.stringify(body)
     }
 
-    const response = await fetch(url, options)
+    const response = await safeFetch(url, options)
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({}))

@@ -78,7 +78,7 @@ async function getUserIdByPhoneNumber(phoneNumber: string): Promise<string | nul
 }
 
 export async function POST(request: NextRequest) {
-  const limited = applyRateLimit(request, { limit: 100, window: 60 })
+  const limited = await applyRateLimit(request, { limit: 100, window: 60 })
   if (limited) return limited
 
   try {
@@ -180,7 +180,7 @@ export async function POST(request: NextRequest) {
 
 // Handle GET for webhook verification
 export async function GET(request: NextRequest) {
-  const limited = applyRateLimit(request, { limit: 100, window: 60 })
+  const limited = await applyRateLimit(request, { limit: 100, window: 60 })
   if (limited) return limited
 
   return new NextResponse("SMS webhook is active", { status: 200 })

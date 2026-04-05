@@ -37,7 +37,7 @@ async function verifyAdmin(): Promise<{ isAdmin: boolean; userId?: string; error
 
 // GET - List CRM leads with pagination, filtering, sorting
 export async function GET(request: NextRequest) {
-  const limited = applyRateLimit(request, { limit: 30, window: 60 })
+  const limited = await applyRateLimit(request, { limit: 30, window: 60 })
   if (limited) return limited
 
   const { isAdmin, error } = await verifyAdmin()
@@ -85,7 +85,7 @@ export async function GET(request: NextRequest) {
 
 // POST - Create a new CRM lead
 export async function POST(request: NextRequest) {
-  const limited = applyRateLimit(request, { limit: 30, window: 60 })
+  const limited = await applyRateLimit(request, { limit: 30, window: 60 })
   if (limited) return limited
 
   const { isAdmin, userId, error } = await verifyAdmin()
@@ -111,7 +111,7 @@ export async function POST(request: NextRequest) {
 
 // PATCH - Update CRM lead(s) - supports single ID or array of IDs for bulk updates
 export async function PATCH(request: NextRequest) {
-  const limited = applyRateLimit(request, { limit: 30, window: 60 })
+  const limited = await applyRateLimit(request, { limit: 30, window: 60 })
   if (limited) return limited
 
   const { isAdmin, error } = await verifyAdmin()
@@ -144,7 +144,7 @@ export async function PATCH(request: NextRequest) {
 
 // DELETE - Delete a CRM lead
 export async function DELETE(request: NextRequest) {
-  const limited = applyRateLimit(request, { limit: 30, window: 60 })
+  const limited = await applyRateLimit(request, { limit: 30, window: 60 })
   if (limited) return limited
 
   const { isAdmin, error } = await verifyAdmin()

@@ -112,7 +112,7 @@ async function getConnectionByInstagramAccount(instagramAccountId: string): Prom
  * Meta sends a verification request when you configure the webhook
  */
 export async function GET(request: NextRequest) {
-  const limited = applyRateLimit(request, { limit: 100, window: 60 })
+  const limited = await applyRateLimit(request, { limit: 100, window: 60 })
   if (limited) return limited
 
   const searchParams = request.nextUrl.searchParams
@@ -136,7 +136,7 @@ export async function GET(request: NextRequest) {
  * Meta sends webhook events here when users message the Instagram account
  */
 export async function POST(request: NextRequest) {
-  const limited = applyRateLimit(request, { limit: 100, window: 60 })
+  const limited = await applyRateLimit(request, { limit: 100, window: 60 })
   if (limited) return limited
 
   try {

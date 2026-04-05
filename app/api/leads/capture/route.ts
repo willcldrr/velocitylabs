@@ -49,7 +49,7 @@ export async function POST(request: NextRequest) {
              request.headers.get("x-real-ip") ||
              "unknown"
 
-  const rateLimitResult = checkRateLimit(`lead-capture:${ip}`, RATE_LIMITS.leadCapture)
+  const rateLimitResult = await checkRateLimit(`lead-capture:${ip}`, RATE_LIMITS.leadCapture)
 
   if (!rateLimitResult.success) {
     return NextResponse.json(

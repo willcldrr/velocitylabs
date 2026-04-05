@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 import { applyRateLimit } from "@/lib/api-rate-limit"
 import { encrypt } from "@/lib/crypto"
+import { safeFetch } from "@/lib/safe-fetch"
 
 function getSupabase() {
   return createClient(
@@ -11,7 +12,7 @@ function getSupabase() {
 }
 
 export async function POST(request: NextRequest) {
-  const limited = applyRateLimit(request, { limit: 10, window: 60 })
+  const limited = await applyRateLimit(request, { limit: 10, window: 60 })
   if (limited) return limited
 
   try {
@@ -40,14 +41,15 @@ export async function POST(request: NextRequest) {
 
     if (process.env.META_APP_ID && process.env.META_APP_SECRET) {
       try {
-        const exchangeRes = await fetch(
+        const exchangeRes = await safeFetch(
           `https://graph.facebook.com/v19.0/oauth/access_token?` +
           new URLSearchParams({
             grant_type: "fb_exchange_token",
             client_id: process.env.META_APP_ID,
             client_secret: process.env.META_APP_SECRET,
             fb_exchange_token: accessToken,
-          }).toString()
+          }).toString(),
+          { timeoutMs: 30_000 }
         )
 
         if (exchangeRes.ok) {
@@ -66,7 +68,7 @@ export async function POST(request: NextRequest) {
     let pageName: string | null = null
     let pageAccessToken: string | null = null
 
-    const pagesRes = await fetch(
+    const pagesRes = await safeFetch(
       `https://graph.facebook.com/v19.0/me/accounts?fields=id,name,instagram_business_account,access_token&access_token=${longLivedToken}`
     )
 
@@ -90,7 +92,7 @@ export async function POST(request: NextRequest) {
         for (const page of pages) {
           const pt = page.access_token || longLivedToken
           try {
-            const pageIgRes = await fetch(
+            const pageIgRes = await safeFetch(
               `https://graph.facebook.com/v19.0/${page.id}?fields=instagram_business_account{id,username}&access_token=${pt}`
             )
             if (pageIgRes.ok) {
@@ -111,7 +113,7 @@ export async function POST(request: NextRequest) {
       const pagesErrBody = await pagesRes.json()
       console.log("[IG Connect] me/accounts failed:", JSON.stringify(pagesErrBody))
 
-      const pageInfoRes = await fetch(
+      const pageInfoRes = await safeFetch(
         `https://graph.facebook.com/v19.0/me?fields=id,name,instagram_business_account&access_token=${longLivedToken}`
       )
 
@@ -149,7 +151,7 @@ export async function POST(request: NextRequest) {
     let instagramUsername: string | null = null
 
     try {
-      const igRes = await fetch(
+      const igRes = await safeFetch(
         `https://graph.facebook.com/v19.0/${instagramAccountId}?fields=username&access_token=${tokenForIG}`
       )
       if (igRes.ok) {
@@ -166,14 +168,15 @@ export async function POST(request: NextRequest) {
 
     if (pageAccessToken && process.env.META_APP_ID && process.env.META_APP_SECRET) {
       try {
-        const pageExchangeRes = await fetch(
+        const pageExchangeRes = await safeFetch(
           `https://graph.facebook.com/v19.0/oauth/access_token?` +
           new URLSearchParams({
             grant_type: "fb_exchange_token",
             client_id: process.env.META_APP_ID,
             client_secret: process.env.META_APP_SECRET,
             fb_exchange_token: pageAccessToken,
-          }).toString()
+          }).toString(),
+          { timeoutMs: 30_000 }
         )
         if (pageExchangeRes.ok) {
           const pageTokenData = await pageExchangeRes.json()

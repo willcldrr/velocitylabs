@@ -38,7 +38,7 @@ async function verifyAdmin(request: NextRequest): Promise<{ isAdmin: boolean; us
 
 // GET - List all businesses
 export async function GET(request: NextRequest) {
-  const limited = applyRateLimit(request, { limit: 30, window: 60 })
+  const limited = await applyRateLimit(request, { limit: 30, window: 60 })
   if (limited) return limited
 
   const { isAdmin, error } = await verifyAdmin(request)
@@ -60,7 +60,7 @@ export async function GET(request: NextRequest) {
 
 // POST - Create a new business
 export async function POST(request: NextRequest) {
-  const limited = applyRateLimit(request, { limit: 30, window: 60 })
+  const limited = await applyRateLimit(request, { limit: 30, window: 60 })
   if (limited) return limited
 
   const { isAdmin, error } = await verifyAdmin(request)
@@ -122,7 +122,7 @@ export async function POST(request: NextRequest) {
 
 // PATCH - Update business (full update or status only)
 export async function PATCH(request: NextRequest) {
-  const limited = applyRateLimit(request, { limit: 30, window: 60 })
+  const limited = await applyRateLimit(request, { limit: 30, window: 60 })
   if (limited) return limited
 
   const { isAdmin, error } = await verifyAdmin(request)
@@ -196,7 +196,7 @@ export async function PATCH(request: NextRequest) {
 
 // DELETE - Delete a business
 export async function DELETE(request: NextRequest) {
-  const limited = applyRateLimit(request, { limit: 30, window: 60 })
+  const limited = await applyRateLimit(request, { limit: 30, window: 60 })
   if (limited) return limited
 
   const { isAdmin, error } = await verifyAdmin(request)

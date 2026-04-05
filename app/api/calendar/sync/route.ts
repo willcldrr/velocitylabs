@@ -17,7 +17,7 @@ interface SyncResult {
  * Manually trigger calendar sync for a specific vehicle or all vehicles
  */
 export async function POST(request: NextRequest) {
-  const limited = applyRateLimit(request, { limit: 30, window: 60 })
+  const limited = await applyRateLimit(request, { limit: 30, window: 60 })
   if (limited) return limited
 
   try {
@@ -133,7 +133,7 @@ export async function POST(request: NextRequest) {
  * Get sync status for vehicles
  */
 export async function GET(request: NextRequest) {
-  const limited = applyRateLimit(request, { limit: 30, window: 60 })
+  const limited = await applyRateLimit(request, { limit: 30, window: 60 })
   if (limited) return limited
 
   try {

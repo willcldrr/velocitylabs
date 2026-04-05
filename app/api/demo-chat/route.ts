@@ -30,7 +30,7 @@ DEMO RULES:
 
 export async function POST(request: NextRequest) {
   // 15 messages per 5 minutes per IP — enough for a full demo conversation
-  const limited = applyRateLimit(request, { limit: 15, window: 300 })
+  const limited = await applyRateLimit(request, { limit: 15, window: 300 })
   if (limited) return limited
 
   try {

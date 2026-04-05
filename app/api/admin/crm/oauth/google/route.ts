@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server"
 import { applyRateLimit } from "@/lib/api-rate-limit"
 
 export async function GET(request: NextRequest) {
-  const limited = applyRateLimit(request, { limit: 10, window: 60 })
+  const limited = await applyRateLimit(request, { limit: 10, window: 60 })
   if (limited) return limited
 
   const supabase = await createClient()

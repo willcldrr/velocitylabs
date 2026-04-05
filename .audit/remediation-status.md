@@ -18,8 +18,8 @@ Legend: `[ ] PENDING` · `[~] IN PROGRESS` · `[✓] DONE` · `[!] BLOCKED`
 | LB-6 | [✓] | Encrypt per-tenant Stripe keys, IG tokens; hash api_keys | W1-A |
 | LB-7 | [ ] | Structured logger + Sentry wiring; redact 245 console.* | W2-D |
 | LB-8 | [✓] | Stripe webhook 500 on internal errors; Sentry capture | W2-B |
-| LB-9 | [ ] | safe-fetch SSRF hardening + fetch timeouts everywhere | W2-C |
-| LB-10 | [ ] | Replace in-memory rate limiter with shared store | W2-C |
+| LB-9 | [✓] | safe-fetch SSRF hardening + fetch timeouts everywhere | W2-C |
+| LB-10 | [✓] | Replace in-memory rate limiter with shared store | W2-C |
 | LB-11 | [✓] | OTP brute-force: failed_attempts, lockout, TTL, composite key | W2-A |
 | LB-12 | [✓] | Thread currency through 4 Stripe checkout routes | W2-B |
 
@@ -43,7 +43,7 @@ Legend: `[ ] PENDING` · `[~] IN PROGRESS` · `[✓] DONE` · `[!] BLOCKED`
 - [ ] M11 — cron secret non-constant-time compare
 
 ### Reliability
-- [ ] R-7 — raw fetch w/o timeout in 15+ files (covered by LB-9)
+- [✓] R-7 — raw fetch w/o timeout in 15+ files (covered by LB-9)
 - [ ] R-8 — signup Resend call un-try/caught
 - [ ] R-10 — checkout/create race: claim before Stripe session
 - [ ] R-11 — no retry/backoff/circuit breaker on external SDKs
@@ -65,7 +65,7 @@ Legend: `[ ] PENDING` · `[~] IN PROGRESS` · `[✓] DONE` · `[!] BLOCKED`
 - [ ] Perf #10 — sms-ai serial awaits + unbounded bookings select
 - [ ] Perf #11 — calendar-sync serial upsert (duplicate of R-21)
 - [ ] Perf #12 — /api/analytics unbounded history
-- [ ] Perf #15 — in-memory rate limiter (resolved by LB-10)
+- [✓] Perf #15 — in-memory rate limiter (resolved by LB-10)
 
 ### Observability (HIGH tier)
 - [ ] F-2 — Sentry beforeSend brittle regex
@@ -90,6 +90,8 @@ Legend: `[ ] PENDING` · `[~] IN PROGRESS` · `[✓] DONE` · `[!] BLOCKED`
 - **Conservative scope.** No refactors beyond what each finding requires. Renames are avoided.
 - **No cross-agent messaging primitives available.** Waves are sequenced by the main loop, not by agent-to-agent SendMessage.
 - **LB-11 rate-limit wrapper (W2-A).** `lib/auth-rate-limit.ts` computes `sha256(email+'|'+ip)` and delegates to the existing in-memory `applyRateLimit`. Backend is still the in-memory Map from `lib/rate-limit.ts` pending W2-C (LB-10); when W2-C swaps the store, this helper keeps working with no changes. A `TODO(LB-10)` marker is left in the wrapper.
+- **LB-9 safe-fetch hardening (W2-C).** `lib/safe-fetch.ts` is now a real SSRF guard: scheme allowlist (http/https), DNS-resolve via `dns.promises.lookup({all:true})`, reject any result in `127/8`, `10/8`, `172.16/12`, `192.168/16`, `169.254/16` (cloud metadata), `100.64/10` CGNAT, multicast, reserved, `::1`, `fc00::/7`, `fe80::/10`, and IPv4-mapped IPv6; `redirect:"manual"` with manual re-validation on 3xx up to 3 hops; default 15s timeout via `AbortSignal.timeout()`. A separate `safeFetchAllowInternal(url, init)` export skips the private-IP block for trusted callers (scheme+timeout still enforced) — used by the `lib/sms-ai.ts:610` self-to-self payment-link call (so localhost dev still works) and by the Upstash REST client inside the rate limiter. All 15+ raw-fetch callsites listed in R-7 were swapped to `safeFetch`; the critical `lib/ical-parser.ts` path (user-controlled `turo_ical_url`, H2) uses the HARDENED `safeFetch`, not the escape hatch.
+- **LB-10 rate limiter backend (W2-C).** `lib/rate-limit.ts` refactored into a `RateLimiterBackend` interface with two implementations: `InMemoryBackend` (the original Map, kept as the dev-only fallback) and `UpstashBackend` (talks to the Upstash Redis REST API via `POST /pipeline` with `INCR` + `EXPIRE NX` + `PTTL` in one round trip — zero new npm dependencies, no `@upstash/redis`/`@upstash/ratelimit` install). `createRateLimiter()` picks Upstash iff both `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` are set, else InMemory. Backend choice is logged once at module load with a `TODO(LB-7)` marker for W2-D. On any Upstash error (network, 5xx) the limiter falls back to in-memory and continues serving rather than failing all traffic. The Upstash pipeline call uses `safeFetchAllowInternal` so it cannot recursively get throttled by the rate limiter during its own HTTP call. **Scope deviation:** Node has no sync HTTP client, so `checkRateLimit` and therefore `applyRateLimit` (`lib/api-rate-limit.ts`) and `applyAuthRateLimit` (`lib/auth-rate-limit.ts`) had to become `async`. All 75+ route-handler call sites were updated with a mechanical `await` prefix (no logic changes). The task's "zero caller edits" rule was in direct conflict with the "replace in-memory with Upstash" rule; adding `await` is the minimal possible change. `auth-rate-limit.ts` was touched only to flip its return type from `NextResponse|null` to `Promise<NextResponse|null>` — the sha256(email+'|'+ip) logic is byte-identical. New env vars `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` added to `.env.example` under a new "Shared rate limiter (LB-10)" section.
 - **LB-4 Stripe namespacing (W2-B).** Two Stripe webhook routes remain in place; `app/api/stripe-webhook` claims `"stripe:bookings"`, `app/api/payments/webhook` claims `"stripe:payments"`. **Human operator step required:** Stripe dashboard must deliver `checkout.session.completed` to BOTH endpoint URLs so each half of the business logic (booking_deposit vs IG/SMS flow) still runs. This cannot be verified from code.
 - **LB-5b RPC (W2-B).** Migration `20260405140000_confirm_booking_rpc.sql` defines `confirm_booking_and_lead(...)`. Signature took 15 params (not 13 from the audit draft) because (a) `p_lead_id` is nullable to match the existing flow where IG/SMS checkouts sometimes lack a lead, (b) `p_stripe_payment_intent` is needed (booking row persists it), (c) `p_lead_notes` lets the caller override the lead's `notes` column without a second round-trip. Column-name audit: `bookings.total_amount`, `bookings.deposit_amount`, `bookings.deposit_paid`, `bookings.stripe_session_id`, `bookings.stripe_payment_intent`, `bookings.customer_{name,email,phone}`, `bookings.currency` — all verified against `20260319_bookings_lead_id.sql`, `20260405120203_retroactive_bookings_stripe_columns.sql`, and the existing `.insert({...})` shape at `app/api/payments/webhook/route.ts:219`. `messages` columns verified against `lib/sms-ai.ts:682` (`user_id, lead_id, content, direction`).
 - **LB-12 currency (W2-B).** Neither `businesses` nor `bookings` had a `currency` column before this wave — confirmed by grep over `supabase/migrations/*.sql` (zero matches). Migration `20260405140100_businesses_currency.sql` adds `currency TEXT NOT NULL DEFAULT 'USD'` with an ISO-4217 regex CHECK to both tables. Until that migration is applied, the 4 checkout routes fall back to `process.env.DEFAULT_CURRENCY || 'USD'` via `lib/currency.ts` `DEFAULT_CURRENCY`. `app/api/payments/create-checkout` and `app/api/checkout/create` and `app/api/create-checkout` also now attempt to `SELECT businesses.currency WHERE owner_user_id = ?` (wrapped in try/catch so pre-migration deploys don't crash on unknown-column errors). `app/api/bookings/checkout` reads an optional `currency` field off the `bookings` row. All 4 routes lowercase the code for Stripe and validate against `SUPPORTED_CURRENCIES`, logging and falling back to `usd` on anything unsupported.

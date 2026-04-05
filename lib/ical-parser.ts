@@ -3,6 +3,8 @@
  * Parses ICS files and extracts booking events
  */
 
+import { safeFetch } from "./safe-fetch"
+
 export interface ICalEvent {
   uid: string
   summary: string
@@ -127,10 +129,14 @@ export function parseIcal(icsContent: string): ICalEvent[] {
  * Fetch and parse iCal from URL
  */
 export async function fetchAndParseIcal(url: string): Promise<ICalEvent[]> {
-  const response = await fetch(url, {
+  // LB-9 / Security H2: `url` is `vehicles.turo_ical_url`, which is
+  // user-controlled. Use the HARDENED safeFetch (NOT safeFetchAllowInternal)
+  // to block SSRF into cloud metadata, internal admin hosts, loopback, etc.
+  const response = await safeFetch(url, {
     headers: {
       'User-Agent': 'RentalCapture/1.0 Calendar Sync',
     },
+    timeoutMs: 15_000,
   })
 
   if (!response.ok) {

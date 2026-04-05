@@ -15,11 +15,11 @@ import { applyRateLimit } from "@/lib/api-rate-limit"
  * change at that time — it delegates to `applyRateLimit` which W2-C will
  * update in place.
  */
-export function applyAuthRateLimit(
+export async function applyAuthRateLimit(
   request: NextRequest,
   email: string | null | undefined,
   config: { limit: number; window: number }
-): NextResponse | null {
+): Promise<NextResponse | null> {
   const ip =
     request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
     request.headers.get("x-real-ip") ||

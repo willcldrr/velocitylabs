@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
 import { applyRateLimit } from "@/lib/api-rate-limit"
+import { safeFetch } from "@/lib/safe-fetch"
 
 export async function POST(request: NextRequest) {
-  const limited = applyRateLimit(request, { limit: 10, window: 60 })
+  const limited = await applyRateLimit(request, { limit: 10, window: 60 })
   if (limited) return limited
 
   try {
@@ -43,7 +44,7 @@ export async function POST(request: NextRequest) {
       ? `https://api.vercel.com/v10/projects/${projectId}/domains?teamId=${teamId}`
       : `https://api.vercel.com/v10/projects/${projectId}/domains`
 
-    const response = await fetch(vercelUrl, {
+    const response = await safeFetch(vercelUrl, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${vercelToken}`,
@@ -52,6 +53,7 @@ export async function POST(request: NextRequest) {
       body: JSON.stringify({
         name: cleanDomain,
       }),
+      timeoutMs: 10_000,
     })
 
     const data = await response.json()

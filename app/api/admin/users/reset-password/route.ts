@@ -16,7 +16,7 @@ function getSupabase() {
 
 // POST - Admin sends a password reset email to a user
 export async function POST(request: NextRequest) {
-  const limited = applyRateLimit(request, { limit: 10, window: 60 })
+  const limited = await applyRateLimit(request, { limit: 10, window: 60 })
   if (limited) return limited
 
   try {

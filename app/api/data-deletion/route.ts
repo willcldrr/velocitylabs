@@ -22,7 +22,7 @@ function getSupabase() {
 }
 
 export async function POST(request: NextRequest) {
-  const limited = applyRateLimit(request, { limit: 5, window: 60 })
+  const limited = await applyRateLimit(request, { limit: 5, window: 60 })
   if (limited) return limited
 
   try {
@@ -110,7 +110,7 @@ export async function POST(request: NextRequest) {
 // Meta requires a callback URL for data deletion requests
 // This handles the Meta Data Deletion Callback
 export async function GET(request: NextRequest) {
-  const limited = applyRateLimit(request, { limit: 20, window: 60 })
+  const limited = await applyRateLimit(request, { limit: 20, window: 60 })
   if (limited) return limited
 
   const url = new URL(request.url)

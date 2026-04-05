@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 import { applyRateLimit } from "@/lib/api-rate-limit"
 import { encrypt, decrypt } from "@/lib/crypto"
+import { safeFetch } from "@/lib/safe-fetch"
 
 /**
  * Cron job to refresh Instagram tokens before they expire
@@ -18,7 +19,7 @@ function getSupabase() {
 }
 
 export async function GET(request: NextRequest) {
-  const limited = applyRateLimit(request, { limit: 10, window: 60 })
+  const limited = await applyRateLimit(request, { limit: 10, window: 60 })
   if (limited) return limited
 
   // Verify cron secret (mandatory)
@@ -85,14 +86,15 @@ export async function GET(request: NextRequest) {
         continue
       }
 
-      const refreshResponse = await fetch(
+      const refreshResponse = await safeFetch(
         `https://graph.facebook.com/v19.0/oauth/access_token?` +
         new URLSearchParams({
           grant_type: "fb_exchange_token",
           client_id: process.env.META_APP_ID!,
           client_secret: process.env.META_APP_SECRET!,
           fb_exchange_token: currentToken,
-        }).toString()
+        }).toString(),
+        { timeoutMs: 30_000 }
       )
 
       if (!refreshResponse.ok) {

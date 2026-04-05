@@ -9,7 +9,7 @@ import {
 } from "./anthropic"
 import { buildPersonalityBlock } from "./ai/personalities"
 import { GUARDRAILS_BLOCK } from "./ai/guardrails"
-import { safeFetch } from "./safe-fetch"
+import { safeFetch, safeFetchAllowInternal } from "./safe-fetch"
 
 function sanitizeCustomerMessage(message: string): string {
   return message
@@ -607,7 +607,10 @@ async function generatePaymentLink(
     let lastError = ""
     for (let attempt = 0; attempt < 3; attempt++) {
       try {
-        const response = await safeFetch(`${baseUrl}/api/payments/create-checkout`, {
+        // LB-9: self-to-self lambda hop. Use the internal escape hatch so
+        // local dev (NEXT_PUBLIC_APP_URL=http://localhost:3000) still works;
+        // the URL is constructed from our own env, not user input.
+        const response = await safeFetchAllowInternal(`${baseUrl}/api/payments/create-checkout`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({

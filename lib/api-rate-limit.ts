@@ -20,11 +20,18 @@ interface RateLimitConfig {
  * const limited = await applyRateLimit(request, { limit: 30, window: 60 })
  * if (limited) return limited
  * ```
+ *
+ * LB-10: as of Wave 2-C this helper is async. The underlying backend can
+ * now be an Upstash Redis REST client (when `UPSTASH_REDIS_REST_URL` +
+ * `UPSTASH_REDIS_REST_TOKEN` are set) or the in-memory Map fallback.
+ * Node has no sync HTTP client, so callers must `await` the result. A
+ * sweep of the codebase swapped every call site to `await applyRateLimit`
+ * in the same wave.
  */
-export function applyRateLimit(
+export async function applyRateLimit(
   request: NextRequest,
   config: RateLimitConfig
-): NextResponse | null {
+): Promise<NextResponse | null> {
   const ip =
     request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
     request.headers.get("x-real-ip") ||
@@ -34,7 +41,7 @@ export function applyRateLimit(
   // Prefix with the pathname so each endpoint has its own bucket
   const key = `${request.nextUrl.pathname}:${identifier}`
 
-  const result = checkRateLimit(key, {
+  const result = await checkRateLimit(key, {
     limit: config.limit,
     windowSeconds: config.window,
   })

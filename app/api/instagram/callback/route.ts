@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js"
 import { createClient as createCookieClient } from "@/lib/supabase/server"
 import { applyRateLimit } from "@/lib/api-rate-limit"
 import { encrypt } from "@/lib/crypto"
+import { safeFetch } from "@/lib/safe-fetch"
 import crypto from "crypto"
 
 function getSupabase() {
@@ -29,7 +30,7 @@ function safeEqualHex(a: string, b: string): boolean {
  * Exchanges auth code for access token and stores credentials
  */
 export async function GET(request: NextRequest) {
-  const limited = applyRateLimit(request, { limit: 10, window: 60 })
+  const limited = await applyRateLimit(request, { limit: 10, window: 60 })
   if (limited) return limited
 
   const searchParams = request.nextUrl.searchParams
@@ -84,14 +85,15 @@ export async function GET(request: NextRequest) {
 
   try {
     // Exchange code for short-lived access token
-    const tokenResponse = await fetch(
+    const tokenResponse = await safeFetch(
       `https://graph.facebook.com/v19.0/oauth/access_token?` +
       new URLSearchParams({
         client_id: appId,
         client_secret: appSecret,
         redirect_uri: redirectUri,
         code: code,
-      }).toString()
+      }).toString(),
+      { timeoutMs: 30_000 }
     )
 
     if (!tokenResponse.ok) {
@@ -105,14 +107,15 @@ export async function GET(request: NextRequest) {
     const shortLivedToken = tokenData.access_token
 
     // Exchange for long-lived token (60 days)
-    const longLivedResponse = await fetch(
+    const longLivedResponse = await safeFetch(
       `https://graph.facebook.com/v19.0/oauth/access_token?` +
       new URLSearchParams({
         grant_type: "fb_exchange_token",
         client_id: appId,
         client_secret: appSecret,
         fb_exchange_token: shortLivedToken,
-      }).toString()
+      }).toString(),
+      { timeoutMs: 30_000 }
     )
 
     if (!longLivedResponse.ok) {
@@ -127,8 +130,9 @@ export async function GET(request: NextRequest) {
     const expiresIn = longLivedData.expires_in || 5184000 // Default 60 days
 
     // Get user's Facebook pages
-    const pagesResponse = await fetch(
-      `https://graph.facebook.com/v19.0/me/accounts?access_token=${accessToken}`
+    const pagesResponse = await safeFetch(
+      `https://graph.facebook.com/v19.0/me/accounts?access_token=${accessToken}`,
+      { timeoutMs: 10_000 }
     )
 
     if (!pagesResponse.ok) {
@@ -153,8 +157,9 @@ export async function GET(request: NextRequest) {
     let pageName: string | null = null
 
     for (const page of pages) {
-      const igResponse = await fetch(
-        `https://graph.facebook.com/v19.0/${page.id}?fields=instagram_business_account,name&access_token=${page.access_token}`
+      const igResponse = await safeFetch(
+        `https://graph.facebook.com/v19.0/${page.id}?fields=instagram_business_account,name&access_token=${page.access_token}`,
+        { timeoutMs: 10_000 }
       )
 
       if (igResponse.ok) {
@@ -165,8 +170,9 @@ export async function GET(request: NextRequest) {
           pageName = igData.name
 
           // Get Instagram username
-          const usernameResponse = await fetch(
-            `https://graph.facebook.com/v19.0/${instagramAccountId}?fields=username&access_token=${page.access_token}`
+          const usernameResponse = await safeFetch(
+            `https://graph.facebook.com/v19.0/${instagramAccountId}?fields=username&access_token=${page.access_token}`,
+            { timeoutMs: 10_000 }
           )
           if (usernameResponse.ok) {
             const usernameData = await usernameResponse.json()

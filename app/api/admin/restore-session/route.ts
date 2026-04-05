@@ -27,7 +27,7 @@ function getServiceSupabase() {
  * Gated behind ENABLE_SESSION_RESTORE feature flag (LB-2).
  */
 export async function POST(request: NextRequest) {
-  const limited = applyRateLimit(request, { limit: 10, window: 60 })
+  const limited = await applyRateLimit(request, { limit: 10, window: 60 })
   if (limited) return limited
 
   // Kill switch — must be explicitly enabled per environment.

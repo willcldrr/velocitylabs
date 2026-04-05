@@ -14,7 +14,7 @@ const EXCHANGE_RATES: Record<string, number> = {
 }
 
 export async function GET(request: NextRequest) {
-  const limited = applyRateLimit(request, { limit: 60, window: 60 })
+  const limited = await applyRateLimit(request, { limit: 60, window: 60 })
   if (limited) return limited
 
   return NextResponse.json({

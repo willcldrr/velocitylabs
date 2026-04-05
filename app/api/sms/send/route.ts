@@ -26,7 +26,7 @@ function getSupabaseService() {
 }
 
 export async function POST(request: NextRequest) {
-  const limited = applyRateLimit(request, { limit: 30, window: 60 })
+  const limited = await applyRateLimit(request, { limit: 30, window: 60 })
   if (limited) return limited
 
   try {

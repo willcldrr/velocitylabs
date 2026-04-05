@@ -13,7 +13,7 @@ function generateCode(): string {
 }
 
 export async function POST(request: NextRequest) {
-  const limited = applyRateLimit(request, { limit: 10, window: 60 })
+  const limited = await applyRateLimit(request, { limit: 10, window: 60 })
   if (limited) return limited
 
   try {
@@ -65,7 +65,7 @@ export async function POST(request: NextRequest) {
 
 // Get current Telegram connection status
 export async function GET(request: NextRequest) {
-  const limited = applyRateLimit(request, { limit: 30, window: 60 })
+  const limited = await applyRateLimit(request, { limit: 30, window: 60 })
   if (limited) return limited
 
   try {
@@ -98,7 +98,7 @@ export async function GET(request: NextRequest) {
 
 // Disconnect Telegram
 export async function DELETE(request: NextRequest) {
-  const limited = applyRateLimit(request, { limit: 10, window: 60 })
+  const limited = await applyRateLimit(request, { limit: 10, window: 60 })
   if (limited) return limited
 
   try {

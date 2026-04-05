@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
 import { applyRateLimit } from "@/lib/api-rate-limit"
+import { safeFetch } from "@/lib/safe-fetch"
 
 export async function GET(request: NextRequest) {
-  const limited = applyRateLimit(request, { limit: 10, window: 60 })
+  const limited = await applyRateLimit(request, { limit: 10, window: 60 })
   if (limited) return limited
 
   const searchParams = request.nextUrl.searchParams
@@ -72,7 +73,7 @@ export async function GET(request: NextRequest) {
 
   // Exchange code for tokens
   try {
-    const tokenResponse = await fetch("https://oauth2.googleapis.com/token", {
+    const tokenResponse = await safeFetch("https://oauth2.googleapis.com/token", {
       method: "POST",
       headers: {
         "Content-Type": "application/x-www-form-urlencoded",
@@ -84,6 +85,7 @@ export async function GET(request: NextRequest) {
         redirect_uri: config.redirect_uri,
         grant_type: "authorization_code",
       }),
+      timeoutMs: 30_000,
     })
 
     if (!tokenResponse.ok) {
@@ -98,10 +100,11 @@ export async function GET(request: NextRequest) {
     // Get user email from Google
     let providerEmail = null
     try {
-      const userInfoResponse = await fetch("https://www.googleapis.com/oauth2/v2/userinfo", {
+      const userInfoResponse = await safeFetch("https://www.googleapis.com/oauth2/v2/userinfo", {
         headers: {
           Authorization: `Bearer ${tokens.access_token}`,
         },
+        timeoutMs: 10_000,
       })
       if (userInfoResponse.ok) {
         const userInfo = await userInfoResponse.json()

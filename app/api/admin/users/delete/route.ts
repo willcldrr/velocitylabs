@@ -60,7 +60,7 @@ async function safeSetNull(
 }
 
 export async function DELETE(request: NextRequest) {
-  const limited = applyRateLimit(request, { limit: 10, window: 60 })
+  const limited = await applyRateLimit(request, { limit: 10, window: 60 })
   if (limited) return limited
 
   const errors: string[] = []

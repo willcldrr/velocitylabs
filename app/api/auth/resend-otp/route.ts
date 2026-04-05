@@ -29,7 +29,7 @@ export async function POST(request: NextRequest) {
   }
 
   // LB-11: composite (email+IP) rate-limit.
-  const limited = applyAuthRateLimit(request, email, { limit: 3, window: 60 })
+  const limited = await applyAuthRateLimit(request, email, { limit: 3, window: 60 })
   if (limited) return limited
 
   try {

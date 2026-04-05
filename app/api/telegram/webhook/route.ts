@@ -7,6 +7,7 @@ import {
 } from "@/lib/telegram-bot-ai"
 import { applyRateLimit } from "@/lib/api-rate-limit"
 import { claimWebhookEvent } from "@/lib/webhook-idempotency"
+import { safeFetch } from "@/lib/safe-fetch"
 
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN
 
@@ -53,7 +54,7 @@ async function sendTelegramMessage(chatId: string | number, text: string) {
   }
 
   try {
-    const response = await fetch(
+    const response = await safeFetch(
       `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`,
       {
         method: "POST",
@@ -63,6 +64,7 @@ async function sendTelegramMessage(chatId: string | number, text: string) {
           text,
           parse_mode: "Markdown",
         }),
+        timeoutMs: 10_000,
       }
     )
 
@@ -76,7 +78,7 @@ async function sendTelegramMessage(chatId: string | number, text: string) {
 }
 
 export async function POST(request: NextRequest) {
-  const limited = applyRateLimit(request, { limit: 100, window: 60 })
+  const limited = await applyRateLimit(request, { limit: 100, window: 60 })
   if (limited) return limited
 
   // Verify the request is from Telegram
@@ -159,7 +161,7 @@ export async function POST(request: NextRequest) {
 
 // Telegram sends GET request to verify webhook
 export async function GET(request: NextRequest) {
-  const limited = applyRateLimit(request, { limit: 100, window: 60 })
+  const limited = await applyRateLimit(request, { limit: 100, window: 60 })
   if (limited) return limited
 
   return NextResponse.json({ status: "Telegram webhook is active" })
