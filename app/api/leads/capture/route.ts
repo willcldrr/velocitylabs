@@ -5,6 +5,7 @@ import { z } from "zod"
 import { defaultLeadStatus } from "@/lib/lead-status"
 import { checkRateLimit, getRateLimitHeaders, RATE_LIMITS } from "@/lib/rate-limit"
 import { resolveSurveyOrApiKey } from "@/lib/survey-auth"
+import { log } from "@/lib/log"
 
 // Input validation schema
 const leadCaptureSchema = z.object({
@@ -175,7 +176,7 @@ export async function POST(request: NextRequest) {
         .eq("id", existingLead.id)
 
       if (updateError) {
-        console.error("Error updating lead:", updateError)
+        log.error("Error updating lead:", updateError)
       }
 
       // Bookkeeping: only update api_key last_used_at when this request actually
@@ -216,7 +217,7 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (insertError) {
-      console.error("Error creating lead:", insertError)
+      log.error("Error creating lead:", insertError)
       return NextResponse.json(
         { error: "Failed to create lead" },
         { status: 500, headers: corsHeaders }
@@ -284,7 +285,7 @@ export async function POST(request: NextRequest) {
       // SMS sent successfully
 
     } catch (smsError) {
-      console.error("Failed to send initial SMS:", smsError)
+      log.error("Failed to send initial SMS:", smsError)
       // Don't fail the lead capture if SMS fails
     }
 
@@ -299,7 +300,7 @@ export async function POST(request: NextRequest) {
     )
 
   } catch (error) {
-    console.error("Lead capture error:", error)
+    log.error("Lead capture error:", error)
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500, headers: corsHeaders }

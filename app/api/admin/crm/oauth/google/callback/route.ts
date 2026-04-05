@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
 import { applyRateLimit } from "@/lib/api-rate-limit"
 import { safeFetch } from "@/lib/safe-fetch"
+import { log } from "@/lib/log"
 
 export async function GET(request: NextRequest) {
   const limited = await applyRateLimit(request, { limit: 10, window: 60 })
@@ -89,8 +90,8 @@ export async function GET(request: NextRequest) {
     })
 
     if (!tokenResponse.ok) {
-      const errorData = await tokenResponse.json()
-      console.error("Token exchange error:", errorData)
+      const errorData = await tokenResponse.json().catch(() => ({} as any))
+      log.error("[crm.google] token exchange failed", new Error(errorData?.error || "token_exchange_failed"), { route: "crm.google.callback", stage: "token", status: tokenResponse.status })
       settingsUrl.searchParams.set("error", "token_exchange_failed")
       return NextResponse.redirect(settingsUrl)
     }
@@ -111,7 +112,7 @@ export async function GET(request: NextRequest) {
         providerEmail = userInfo.email
       }
     } catch (e) {
-      console.error("Failed to get user info:", e)
+      log.error("[crm.google] userinfo fetch failed", e, { route: "crm.google.callback", stage: "userinfo" })
     }
 
     // Calculate token expiration
@@ -138,7 +139,7 @@ export async function GET(request: NextRequest) {
       )
 
     if (upsertError) {
-      console.error("Failed to store tokens:", upsertError)
+      log.error("[crm.google] failed to store tokens", upsertError, { route: "crm.google.callback", stage: "upsert" })
       settingsUrl.searchParams.set("error", "storage_failed")
       return NextResponse.redirect(settingsUrl)
     }
@@ -147,7 +148,7 @@ export async function GET(request: NextRequest) {
     settingsUrl.searchParams.set("success", "connected")
     return NextResponse.redirect(settingsUrl)
   } catch (e) {
-    console.error("OAuth callback error:", e)
+    log.error("[crm.google] oauth callback unhandled", e, { route: "crm.google.callback" })
     settingsUrl.searchParams.set("error", "unknown_error")
     return NextResponse.redirect(settingsUrl)
   }

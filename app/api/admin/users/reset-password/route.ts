@@ -4,6 +4,7 @@ import { createClient as createServerClient } from "@/lib/supabase/server"
 import { Resend } from "resend"
 import { applyRateLimit } from "@/lib/api-rate-limit"
 import crypto from "crypto"
+import { log } from "@/lib/log"
 
 const resend = new Resend(process.env.RESEND_API_KEY)
 
@@ -107,7 +108,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true, method: "email_sent" })
   } catch (error) {
-    console.error("Admin reset password error:", error)
+    log.error("Admin reset password error:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }

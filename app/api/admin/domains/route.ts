@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 import { applyRateLimit } from "@/lib/api-rate-limit"
 import { safeFetch } from "@/lib/safe-fetch"
+import { log } from "@/lib/log"
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -142,11 +143,11 @@ export async function POST(request: NextRequest) {
       if (vercelResponse.ok) {
         vercelStatus = "added_to_vercel"
       } else {
-        console.error("Vercel API error:", vercelData)
+        log.error("Vercel API error:", vercelData)
         // Continue anyway - domain can be added to Vercel manually
       }
     } catch (err) {
-      console.error("Vercel API error:", err)
+      log.error("Vercel API error:", err)
     }
   }
 
@@ -226,7 +227,7 @@ export async function DELETE(request: NextRequest) {
         timeoutMs: 10_000,
       })
     } catch (err) {
-      console.error("Vercel API error:", err)
+      log.error("Vercel API error:", err)
     }
   }
 

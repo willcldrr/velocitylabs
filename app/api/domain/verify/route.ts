@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
 import { applyRateLimit } from "@/lib/api-rate-limit"
 import { safeFetch } from "@/lib/safe-fetch"
+import { log } from "@/lib/log"
 
 export async function POST(request: NextRequest) {
   const limited = await applyRateLimit(request, { limit: 20, window: 60 })
@@ -70,7 +71,7 @@ export async function POST(request: NextRequest) {
           })
         }
       } catch (vercelError) {
-        console.error("Vercel API error:", vercelError)
+        log.error("Vercel API error:", vercelError)
       }
     }
 
@@ -146,14 +147,14 @@ export async function POST(request: NextRequest) {
       })
 
     } catch (dnsError) {
-      console.error("DNS lookup error:", dnsError)
+      log.error("DNS lookup error:", dnsError)
       return NextResponse.json({
         verified: false,
         message: "DNS lookup failed. Please try again."
       })
     }
   } catch (error) {
-    console.error("Domain verification error:", error)
+    log.error("Domain verification error:", error)
     return NextResponse.json(
       { error: "Failed to verify domain" },
       { status: 500 }

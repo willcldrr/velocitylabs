@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 import { createClient as createServerClient } from "@/lib/supabase/server"
 import { applyRateLimit } from "@/lib/api-rate-limit"
+import { log } from "@/lib/log"
 
 function getSupabase() {
   return createClient(
@@ -74,7 +75,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ users: usersWithBusiness })
   } catch (err) {
-    console.error("Admin users API error:", err)
+    log.error("Admin users API error:", err)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }

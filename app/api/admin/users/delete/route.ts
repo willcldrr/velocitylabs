@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 import { createClient as createServerClient } from "@/lib/supabase/server"
 import { applyRateLimit } from "@/lib/api-rate-limit"
+import { log } from "@/lib/log"
 
 // Service role client for admin operations
 const getServiceSupabase = () => {
@@ -25,14 +26,14 @@ async function safeDelete(
   try {
     const { error } = await supabase.from(table).delete().eq(column, value)
     if (error) {
-      console.error(`[DELETE] ${table}: ${error.message}`)
+      log.error(`[DELETE] ${table}: ${error.message}`, undefined)
       return { success: false, error: error.message }
     }
-    console.log(`[DELETE] ${table}: OK`)
+    log.info(`[DELETE] ${table}: OK`)
     return { success: true }
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Unknown error"
-    console.error(`[DELETE] ${table}: ${msg}`)
+    log.error(`[DELETE] ${table}: ${msg}`, undefined)
     return { success: false, error: msg }
   }
 }
@@ -47,14 +48,14 @@ async function safeSetNull(
   try {
     const { error } = await (supabase.from(table) as any).update({ [column]: null }).eq(column, value)
     if (error) {
-      console.error(`[SET NULL] ${table}.${column}: ${error.message}`)
+      log.error(`[SET NULL] ${table}.${column}: ${error.message}`, undefined)
       return { success: false, error: error.message }
     }
-    console.log(`[SET NULL] ${table}.${column}: OK`)
+    log.info(`[SET NULL] ${table}.${column}: OK`)
     return { success: true }
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Unknown error"
-    console.error(`[SET NULL] ${table}.${column}: ${msg}`)
+    log.error(`[SET NULL] ${table}.${column}: ${msg}`, undefined)
     return { success: false, error: msg }
   }
 }
@@ -66,14 +67,14 @@ export async function DELETE(request: NextRequest) {
   const errors: string[] = []
 
   try {
-    console.log("[DELETE USER] Starting user deletion...")
+    log.info("[DELETE USER] Starting user deletion...")
 
     // Verify the requesting user is an admin
     const supabase = await createServerClient()
     const { data: { user }, error: authError } = await supabase.auth.getUser()
 
     if (authError || !user) {
-      console.error("[DELETE USER] Auth error:", authError)
+      log.error("[DELETE USER] Auth error:", authError)
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
@@ -82,7 +83,7 @@ export async function DELETE(request: NextRequest) {
     try {
       serviceSupabase = getServiceSupabase()
     } catch (e) {
-      console.error("[DELETE USER] Service role error:", e)
+      log.error("[DELETE USER] Service role error:", e)
       return NextResponse.json({
         error: "Server configuration error - missing service role key"
       }, { status: 500 })
@@ -95,13 +96,13 @@ export async function DELETE(request: NextRequest) {
       .single()
 
     if (!profile?.is_admin) {
-      console.error("[DELETE USER] Not admin:", user.id)
+      log.error("[DELETE USER] Not admin:", user.id)
       return NextResponse.json({ error: "Admin access required" }, { status: 403 })
     }
 
     // Get user ID to delete from request
     const { userId, businessId } = await request.json()
-    console.log("[DELETE USER] Target user:", userId, "Business:", businessId)
+    log.info("[DELETE USER] Target user:", { v0: userId, v1: "Business:", v2: businessId })
 
     if (!userId) {
       return NextResponse.json({ error: "User ID is required" }, { status: 400 })
@@ -120,10 +121,10 @@ export async function DELETE(request: NextRequest) {
       .single()
 
     if (!targetUser) {
-      console.log("[DELETE USER] User not found:", userId)
+      log.info("[DELETE USER] User not found:", { v0: userId })
       return NextResponse.json({ error: "User not found" }, { status: 404 })
     }
-    console.log("[DELETE USER] Found user:", targetUser.email)
+    log.info("[DELETE USER] Found user:", { v0: targetUser.email })
 
     // Delete business if provided
     // Must clear payment_links.business_id first (no CASCADE on that FK)
@@ -135,9 +136,9 @@ export async function DELETE(request: NextRequest) {
         .eq("business_id", businessId)
 
       if (plError) {
-        console.error("[DELETE USER] Failed to clear payment_links.business_id:", plError)
+        log.error("[DELETE USER] Failed to clear payment_links.business_id:", plError)
       } else {
-        console.log("[DELETE USER] Cleared payment_links.business_id references")
+        log.info("[DELETE USER] Cleared payment_links.business_id references")
       }
 
       const { error: businessError } = await serviceSupabase
@@ -146,11 +147,11 @@ export async function DELETE(request: NextRequest) {
         .eq("id", businessId)
 
       if (businessError) {
-        console.error("[DELETE USER] Business deletion error:", businessError)
+        log.error("[DELETE USER] Business deletion error:", businessError)
         errors.push(`business: ${businessError.message}`)
         // Continue anyway - business might have RLS issues or already be deleted
       } else {
-        console.log("[DELETE USER] Business deleted:", businessId)
+        log.info("[DELETE USER] Business deleted:", { v0: businessId })
       }
     }
 
@@ -192,42 +193,42 @@ export async function DELETE(request: NextRequest) {
     await safeSetNull(serviceSupabase, "data_deletion_requests", "user_id", userId)
 
     // Now delete the profile
-    console.log("[DELETE USER] Deleting profile...")
+    log.info("[DELETE USER] Deleting profile...")
     const { error: profileError } = await serviceSupabase
       .from("profiles")
       .delete()
       .eq("id", userId)
 
     if (profileError) {
-      console.error("[DELETE USER] Profile deletion FAILED:", profileError)
+      log.error("[DELETE USER] Profile deletion FAILED:", profileError)
       // This is a critical error - we need to report what's blocking it
       return NextResponse.json({
         error: `Failed to delete profile: ${profileError.message}. This may indicate a foreign key constraint that wasn't cleaned up.`,
         details: profileError
       }, { status: 500 })
     }
-    console.log("[DELETE USER] Profile deleted successfully")
+    log.info("[DELETE USER] Profile deleted successfully")
 
     // Finally delete from auth.users
-    console.log("[DELETE USER] Deleting auth user...")
+    log.info("[DELETE USER] Deleting auth user...")
     const { error: authDeleteError } = await serviceSupabase.auth.admin.deleteUser(userId)
 
     if (authDeleteError) {
-      console.error("[DELETE USER] Auth deletion FAILED:", authDeleteError)
+      log.error("[DELETE USER] Auth deletion FAILED:", authDeleteError)
       // Profile is already deleted, so return partial success
       return NextResponse.json({
         success: true,
         warning: `Profile deleted but auth user removal failed: ${authDeleteError.message}`
       })
     }
-    console.log("[DELETE USER] Auth user deleted successfully")
+    log.info("[DELETE USER] Auth user deleted successfully")
 
     return NextResponse.json({
       success: true,
       message: "User and all associated data deleted successfully"
     })
   } catch (error) {
-    console.error("[DELETE USER] Unexpected error:", error)
+    log.error("[DELETE USER] Unexpected error:", error)
     const message = error instanceof Error ? error.message : "Unknown error"
     return NextResponse.json({
       error: `Internal server error: ${message}`,

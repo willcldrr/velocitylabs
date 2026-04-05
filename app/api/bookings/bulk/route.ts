@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
 import { z } from "zod"
 import { applyRateLimit } from "@/lib/api-rate-limit"
+import { log } from "@/lib/log"
 
 const bulkBookingSchema = z.object({
   action: z.enum(["update_status", "delete"]),
@@ -57,7 +58,7 @@ export async function POST(request: NextRequest) {
         .select("id")
 
       if (error) {
-        console.error("Bulk status update error:", error)
+        log.error("Bulk status update error:", error)
         failureCount = bookingIds.length
       } else {
         successCount = data?.length ?? 0
@@ -73,7 +74,7 @@ export async function POST(request: NextRequest) {
         .select("id")
 
       if (error) {
-        console.error("Bulk delete error:", error)
+        log.error("Bulk delete error:", error)
         failureCount = bookingIds.length
       } else {
         successCount = data?.length ?? 0
@@ -88,7 +89,7 @@ export async function POST(request: NextRequest) {
       failureCount,
     })
   } catch (error: any) {
-    console.error("Bulk booking action error:", error)
+    log.error("Bulk booking action error:", error)
     return NextResponse.json(
       { error: error.message || "Failed to perform bulk action" },
       { status: 500 }

@@ -3,6 +3,7 @@ import twilio from "twilio"
 import { createClient } from "@/lib/supabase/server"
 import { z } from "zod"
 import { applyRateLimit } from "@/lib/api-rate-limit"
+import { log } from "@/lib/log"
 
 const MAX_RECIPIENTS = 100
 
@@ -114,7 +115,7 @@ export async function POST(request: NextRequest) {
       errors: errors.length > 0 ? errors : undefined,
     })
   } catch (error: any) {
-    console.error("Bulk SMS error:", error)
+    log.error("Bulk SMS error:", error)
     return NextResponse.json(
       { error: error.message || "Failed to send bulk SMS" },
       { status: 500 }

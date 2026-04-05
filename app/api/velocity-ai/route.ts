@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { generateResponse, ChatMessage, ModelId } from "@/lib/anthropic"
 import { createClient } from "@/lib/supabase/server"
 import { applyRateLimit } from "@/lib/api-rate-limit"
+import { log } from "@/lib/log"
 
 export const runtime = "nodejs"
 
@@ -53,9 +54,10 @@ export async function POST(request: NextRequest) {
     })
 
   } catch (error: any) {
-    console.error("Velocity AI error:", error)
+    // F-13: never return raw error messages to the client; log server-side.
+    log.error("[velocity-ai] unhandled error", error, { route: "velocity-ai" })
     return NextResponse.json(
-      { error: "Internal server error", details: error?.message },
+      { error: "Internal server error" },
       { status: 500 }
     )
   }

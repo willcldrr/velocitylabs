@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js"
 import { applyRateLimit } from "@/lib/api-rate-limit"
 import { encrypt, decrypt } from "@/lib/crypto"
 import { safeFetch } from "@/lib/safe-fetch"
+import { log } from "@/lib/log"
 
 /**
  * Cron job to refresh Instagram tokens before they expire
@@ -26,7 +27,7 @@ export async function GET(request: NextRequest) {
   const authHeader = request.headers.get("authorization")
   const cronSecret = process.env.CRON_SECRET
   if (!cronSecret) {
-    console.error("CRON_SECRET not configured")
+    log.error("CRON_SECRET not configured", undefined)
     return NextResponse.json({ error: "Server misconfigured" }, { status: 500 })
   }
   if (authHeader !== `Bearer ${cronSecret}`) {
@@ -75,7 +76,7 @@ export async function GET(request: NextRequest) {
             tag: connection.access_token_tag,
           })
         } catch (err) {
-          console.error(`[Token Refresh] Decrypt failed for ${connection.instagram_username}`)
+          log.error(`[Token Refresh] Decrypt failed for ${connection.instagram_username}`, undefined)
         }
       }
       if (!currentToken) {
@@ -99,7 +100,7 @@ export async function GET(request: NextRequest) {
 
       if (!refreshResponse.ok) {
         const error = await refreshResponse.json()
-        console.error(`[Token Refresh] Failed for ${connection.instagram_username}:`, error)
+        log.error(`[Token Refresh] Failed for ${connection.instagram_username}:`, error)
         results.failed.push(connection.instagram_username || connection.id)
 
         // Mark connection as needing attention if token is invalid
@@ -132,7 +133,7 @@ export async function GET(request: NextRequest) {
 
       results.refreshed.push(connection.instagram_username || connection.id)
     } catch (error) {
-      console.error(`[Token Refresh] Error for ${connection.instagram_username}:`, error)
+      log.error(`[Token Refresh] Error for ${connection.instagram_username}:`, error)
       results.failed.push(connection.instagram_username || connection.id)
     }
   }

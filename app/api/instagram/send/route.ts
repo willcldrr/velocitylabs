@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js"
 import { sendInstagramMessage, InstagramCredentials } from "@/lib/instagram"
 import { applyRateLimit } from "@/lib/api-rate-limit"
 import { decrypt } from "@/lib/crypto"
+import { log } from "@/lib/log"
 
 export const dynamic = "force-dynamic"
 
@@ -80,7 +81,7 @@ export async function POST(request: NextRequest) {
             tag: connection.access_token_tag,
           })
         } catch (err) {
-          console.error("[instagram/send] Failed to decrypt access token")
+          log.error("[instagram/send] Failed to decrypt access token", undefined)
         }
       }
       if (!accessToken) {
@@ -103,7 +104,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true, messageId: result.messageId })
   } catch (error) {
-    console.error("[Instagram Send] Error:", error)
+    log.error("[Instagram Send] Error:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }

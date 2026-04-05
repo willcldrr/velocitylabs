@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 import { createClient as createServerClient } from "@/lib/supabase/server"
 import { applyRateLimit } from "@/lib/api-rate-limit"
+import { log } from "@/lib/log"
 
 const serviceSupabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -270,7 +271,7 @@ export async function GET(request: NextRequest) {
     // JSON format (default)
     return NextResponse.json({ data, summary })
   } catch (error) {
-    console.error("[Analytics API] Error:", error)
+    log.error("[Analytics API] Error:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }

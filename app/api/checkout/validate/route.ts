@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 import { lookupPaymentToken, decodePaymentToken, lookupBusinessById, BusinessInfo } from "@/lib/payment-link"
 import { applyRateLimit } from "@/lib/api-rate-limit"
+import { log } from "@/lib/log"
 
 export const runtime = "nodejs"
 
@@ -140,7 +141,7 @@ export async function POST(request: NextRequest) {
       business: branding,
     })
   } catch (error) {
-    console.error("Token validation error:", error)
+    log.error("Token validation error:", error)
     return NextResponse.json(
       { valid: false, error: "Failed to validate token" },
       { status: 500 }

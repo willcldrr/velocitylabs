@@ -3,6 +3,7 @@ import crypto from "crypto"
 import { createClient } from "@supabase/supabase-js"
 import { z } from "zod"
 import { applyRateLimit } from "@/lib/api-rate-limit"
+import { log } from "@/lib/log"
 
 const deletionRequestSchema = z.object({
   email: z.string().email("Invalid email address"),
@@ -82,7 +83,7 @@ export async function POST(request: NextRequest) {
     if (insertError) {
       // If the insert failed (e.g. table missing), leave a breadcrumb so ops
       // can still follow up — but only with non-identifying metadata.
-      console.error("[Data Deletion Request] insert failed; request received but not persisted", {
+      log.error("[Data Deletion Request] insert failed; request received but not persisted", {
         deletionType,
         userId: resolvedUserId,
         timestamp: new Date().toISOString(),
@@ -90,16 +91,14 @@ export async function POST(request: NextRequest) {
     }
 
     // Log for compliance tracking — user id only, never email.
-    console.log(
-      `[GDPR/CCPA] Data deletion request received (type=${deletionType}, userId=${resolvedUserId ?? "unknown"})`
-    )
+    log.info(`[GDPR/CCPA] Data deletion request received (type=${deletionType}, userId=${resolvedUserId ?? "unknown"})`)
 
     return NextResponse.json({
       success: true,
       message: "Your deletion request has been submitted and will be processed within 30 days.",
     })
   } catch (error) {
-    console.error("[Data Deletion] Error processing request:", error)
+    log.error("[Data Deletion] Error processing request:", error)
     return NextResponse.json(
       { error: "Failed to process deletion request. Please try again." },
       { status: 500 }
@@ -154,7 +153,7 @@ export async function GET(request: NextRequest) {
     const userId = decodedPayload.user_id
 
     // Log the deletion request
-    console.log(`[Meta Data Deletion] Request for user_id: ${userId}`)
+    log.info(`[Meta Data Deletion] Request for user_id: ${userId}`)
 
     const supabase = getSupabase()
 
@@ -175,7 +174,7 @@ export async function GET(request: NextRequest) {
       confirmation_code: confirmationCode,
     })
   } catch (error) {
-    console.error("[Meta Data Deletion] Error:", error)
+    log.error("[Meta Data Deletion] Error:", error)
     return NextResponse.json(
       { error: "Failed to process deletion request" },
       { status: 500 }

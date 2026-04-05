@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server"
 import { safeFetch } from "@/lib/safe-fetch"
+import { log } from "@/lib/log"
 
 interface GoogleCalendarEvent {
   id?: string
@@ -105,7 +106,7 @@ export class GoogleCalendarClient {
 
       return true
     } catch (error) {
-      console.error("Failed to refresh token:", error)
+      log.error("Failed to refresh token:", error)
       return false
     }
   }

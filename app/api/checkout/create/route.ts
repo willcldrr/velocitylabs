@@ -6,6 +6,7 @@ import { lookupPaymentToken, decodePaymentToken, claimPaymentLinkForCheckout } f
 import { applyRateLimit } from "@/lib/api-rate-limit"
 import { decrypt } from "@/lib/crypto"
 import { SUPPORTED_CURRENCIES, DEFAULT_CURRENCY } from "@/lib/currency"
+import { log } from "@/lib/log"
 
 const checkoutSchema = z.object({
   token: z.string().min(1, "Payment token is required").max(500, "Invalid token"),
@@ -57,7 +58,7 @@ async function getStripeKeysForUser(userId: string): Promise<{ secretKey: string
         tag: data.stripe_secret_key_tag,
       })
     } catch (err) {
-      console.error("[checkout/create] Failed to decrypt tenant Stripe key")
+      log.error("[checkout/create] Failed to decrypt tenant Stripe key", undefined)
     }
   }
   if (!secretKey) {
@@ -148,10 +149,10 @@ export async function POST(request: NextRequest) {
     const envDefault = (process.env.DEFAULT_CURRENCY || DEFAULT_CURRENCY).toUpperCase()
     let resolvedCurrency = (businessCurrencyRaw || envDefault).toUpperCase()
     if (!SUPPORTED_CURRENCIES[resolvedCurrency]) {
-      console.warn("[checkout] unsupported currency, falling back to usd", {
+      log.warn("[checkout] unsupported currency, falling back to usd", { v0: {
         businessId: paymentData.userId,
         currency: resolvedCurrency,
-      }) // TODO(LB-7)
+      } })
       resolvedCurrency = "USD"
     }
     const stripeCurrency = resolvedCurrency.toLowerCase()
@@ -203,7 +204,7 @@ export async function POST(request: NextRequest) {
       const claimed = await claimPaymentLinkForCheckout(token, session.id)
       if (!claimed) {
         // Link was already used - this is a race condition or replay attack
-        console.error("Payment link already used or not found:", token)
+        log.error("Payment link already used or not found:", token)
         return NextResponse.json(
           { error: "This payment link has already been used" },
           { status: 400 }
@@ -216,7 +217,7 @@ export async function POST(request: NextRequest) {
       sessionId: session.id,
     })
   } catch (error: any) {
-    console.error("Stripe checkout error:", error)
+    log.error("Stripe checkout error:", error)
     return NextResponse.json(
       { error: error.message || "Failed to create checkout session" },
       { status: 500 }

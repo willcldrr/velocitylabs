@@ -7,6 +7,7 @@ import { z } from "zod"
 import { applyRateLimit } from "@/lib/api-rate-limit"
 import { decrypt } from "@/lib/crypto"
 import { SUPPORTED_CURRENCIES, DEFAULT_CURRENCY } from "@/lib/currency"
+import { log } from "@/lib/log"
 
 const paymentCheckoutSchema = z.object({
   leadId: z.string().uuid("Invalid lead ID"),
@@ -83,7 +84,7 @@ export async function POST(request: NextRequest) {
           tag: depositConfig.stripe_secret_key_tag,
         })
       } catch (err) {
-        console.error("[payments/create-checkout] Failed to decrypt tenant Stripe key")
+        log.error("[payments/create-checkout] Failed to decrypt tenant Stripe key", undefined)
       }
     }
     if (!tenantStripeSecretKey && depositConfig?.stripe_secret_key) {
@@ -170,10 +171,10 @@ export async function POST(request: NextRequest) {
     const envDefault = (process.env.DEFAULT_CURRENCY || DEFAULT_CURRENCY).toUpperCase()
     let resolvedCurrency = (businessCurrencyRaw || envDefault).toUpperCase()
     if (!SUPPORTED_CURRENCIES[resolvedCurrency]) {
-      console.warn("[checkout] unsupported currency, falling back to usd", {
+      log.warn("[checkout] unsupported currency, falling back to usd", { v0: {
         businessId: lead.user_id,
         currency: resolvedCurrency,
-      }) // TODO(LB-7)
+      } })
       resolvedCurrency = "USD"
     }
     const stripeCurrency = resolvedCurrency.toLowerCase()
@@ -239,7 +240,7 @@ export async function POST(request: NextRequest) {
     })
 
   } catch (error: any) {
-    console.error("Create checkout error:", error)
+    log.error("Create checkout error:", error)
     return NextResponse.json(
       { error: error.message || "Failed to create checkout session" },
       { status: 500 }

@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js"
 import { applyRateLimit } from "@/lib/api-rate-limit"
 import { encrypt } from "@/lib/crypto"
 import { safeFetch } from "@/lib/safe-fetch"
+import { log } from "@/lib/log"
 
 function getSupabase() {
   return createClient(
@@ -76,7 +77,7 @@ export async function POST(request: NextRequest) {
       // User token — get pages list
       const pagesData = await pagesRes.json()
       const pages = pagesData.data || []
-      console.log("[IG Connect] User token — found", pages.length, "pages:", JSON.stringify(pages.map((p: any) => ({ id: p.id, name: p.name, ig: p.instagram_business_account?.id }))))
+      log.info("[ig.connect] pages found", { count: pages.length, withIg: pages.filter((p: any) => p.instagram_business_account?.id).length })
 
       for (const page of pages) {
         if (page.instagram_business_account?.id) {
@@ -97,7 +98,7 @@ export async function POST(request: NextRequest) {
             )
             if (pageIgRes.ok) {
               const pageIgData = await pageIgRes.json()
-              console.log("[IG Connect] Page", page.id, "IG check:", JSON.stringify(pageIgData))
+              log.debug("[ig.connect] page ig check", { pageId: page.id, hasIg: !!pageIgData.instagram_business_account?.id })
               if (pageIgData.instagram_business_account?.id) {
                 instagramAccountId = pageIgData.instagram_business_account.id
                 pageName = page.name
@@ -110,24 +111,25 @@ export async function POST(request: NextRequest) {
       }
     } else {
       // Likely a Page token — try to get Instagram account directly
-      const pagesErrBody = await pagesRes.json()
-      console.log("[IG Connect] me/accounts failed:", JSON.stringify(pagesErrBody))
+      // Consume body to avoid dangling promise; do not log raw FB error body.
+      await pagesRes.json().catch(() => null)
+      log.warn("[ig.connect] me/accounts failed", { status: pagesRes.status })
 
       const pageInfoRes = await safeFetch(
         `https://graph.facebook.com/v19.0/me?fields=id,name,instagram_business_account&access_token=${longLivedToken}`
       )
 
       if (!pageInfoRes.ok) {
-        const err = await pageInfoRes.json()
-        console.log("[IG Connect] me?fields also failed:", JSON.stringify(err))
+        const err = await pageInfoRes.json().catch(() => ({} as any))
+        log.warn("[ig.connect] me?fields failed", { status: pageInfoRes.status })
         return NextResponse.json(
-          { error: err.error?.message || "Invalid token — could not verify" },
+          { error: err?.error?.message || "Invalid token — could not verify" },
           { status: 400 }
         )
       }
 
       const pageInfo = await pageInfoRes.json()
-      console.log("[IG Connect] Page token — me returned:", JSON.stringify(pageInfo))
+      log.info("[ig.connect] page token resolved", { hasIg: !!pageInfo.instagram_business_account?.id })
 
       if (pageInfo.instagram_business_account?.id) {
         instagramAccountId = pageInfo.instagram_business_account.id
@@ -213,7 +215,7 @@ export async function POST(request: NextRequest) {
       )
 
     if (upsertError) {
-      console.error("[Instagram Manual Connect] Upsert error:", upsertError)
+      log.error("[ig.connect] upsert failed", upsertError, { route: "ig.connect-manual" })
       return NextResponse.json({ error: "Failed to save connection" }, { status: 500 })
     }
 
@@ -225,7 +227,7 @@ export async function POST(request: NextRequest) {
       expiresAt: finalExpiry.toISOString(),
     })
   } catch (error) {
-    console.error("[Instagram Manual Connect] Error:", error)
+    log.error("[ig.connect] unhandled error", error, { route: "ig.connect-manual" })
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }

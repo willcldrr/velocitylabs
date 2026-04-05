@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 import { applyRateLimit } from "@/lib/api-rate-limit"
+import { log } from "@/lib/log"
 
 function getSupabase() {
   return createClient(
@@ -60,7 +61,7 @@ export async function GET(request: NextRequest) {
       .order("make", { ascending: true })
 
     if (vehiclesError) {
-      console.error("Error fetching vehicles:", vehiclesError)
+      log.error("Error fetching vehicles:", vehiclesError)
       return NextResponse.json(
         { error: "Failed to fetch vehicles" },
         { status: 500, headers: corsHeaders }
@@ -73,7 +74,7 @@ export async function GET(request: NextRequest) {
     )
 
   } catch (error) {
-    console.error("Vehicles API error:", error)
+    log.error("Vehicles API error:", error)
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500, headers: corsHeaders }

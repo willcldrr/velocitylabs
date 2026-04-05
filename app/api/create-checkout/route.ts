@@ -3,6 +3,7 @@ import Stripe from "stripe"
 import { createClient } from "@/lib/supabase/server"
 import { applyRateLimit } from "@/lib/api-rate-limit"
 import { SUPPORTED_CURRENCIES, DEFAULT_CURRENCY } from "@/lib/currency"
+import { log } from "@/lib/log"
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2026-02-25.clover",
@@ -71,10 +72,10 @@ export async function POST(request: NextRequest) {
     const envDefault = (process.env.DEFAULT_CURRENCY || DEFAULT_CURRENCY).toUpperCase()
     let resolvedCurrency = (businessCurrencyRaw || envDefault).toUpperCase()
     if (!SUPPORTED_CURRENCIES[resolvedCurrency]) {
-      console.warn("[checkout] unsupported currency, falling back to usd", {
+      log.warn("[checkout] unsupported currency, falling back to usd", { v0: {
         businessId: user.id,
         currency: resolvedCurrency,
-      }) // TODO(LB-7)
+      } })
       resolvedCurrency = "USD"
     }
     const stripeCurrency = resolvedCurrency.toLowerCase()
@@ -107,7 +108,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ url: session.url })
   } catch (error: any) {
-    console.error("Error creating checkout session:", error)
+    log.error("Error creating checkout session:", error)
     return NextResponse.json(
       { error: error.message || "Failed to create checkout session" },
       { status: 500 }

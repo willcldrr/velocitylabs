@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 import { applyRateLimit } from "@/lib/api-rate-limit"
+import { log } from "@/lib/log"
 
 function getSupabase() {
   return createClient(
@@ -70,7 +71,7 @@ export async function GET(request: NextRequest) {
     const { data: bookings, error: bookingsError } = await query.order("start_date", { ascending: true })
 
     if (bookingsError) {
-      console.error("Error fetching bookings:", bookingsError)
+      log.error("Error fetching bookings:", bookingsError)
       return NextResponse.json(
         { error: "Failed to fetch availability" },
         { status: 500, headers: corsHeaders }
@@ -123,7 +124,7 @@ export async function GET(request: NextRequest) {
     )
 
   } catch (error) {
-    console.error("Availability API error:", error)
+    log.error("Availability API error:", error)
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500, headers: corsHeaders }

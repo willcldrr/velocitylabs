@@ -18,6 +18,7 @@
 
 import { createHash } from "crypto"
 import { createClient, type SupabaseClient } from "@supabase/supabase-js"
+import { log } from "@/lib/log"
 
 // LB-4: `WebhookSource` was a closed union but we now namespace Stripe into
 // `"stripe:bookings"`, `"stripe:dashboard"`, `"stripe:payments"` so the two
@@ -86,10 +87,7 @@ export async function claimWebhookEvent(
         .digest("hex")
       eventId = `fallback:${hash}`
     } else {
-      console.warn(
-        "[webhook-idempotency] fail-open: no eventId for source=",
-        source
-      ) // TODO(LB-7)
+      log.warn("[webhook-idempotency] fail-open: no eventId", { source })
       return { claimed: true }
     }
   }
@@ -119,7 +117,7 @@ export async function claimWebhookEvent(
 
   // Any other error is unexpected. Log it and let the handler proceed — we'd
   // rather risk a rare double-process than silently drop a legitimate event.
-  console.error(`[webhook-idempotency] unexpected insert error for ${source}/${eventId}:`, error)
+  log.error(`[webhook-idempotency] unexpected insert error for ${source}/${eventId}:`, error)
   return { claimed: true, reason: "error" }
 }
 

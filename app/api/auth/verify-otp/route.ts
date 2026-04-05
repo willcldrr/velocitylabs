@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 import { applyAuthRateLimit } from "@/lib/auth-rate-limit"
+import { log } from "@/lib/log"
 
 function getSupabase() {
   return createClient(
@@ -123,7 +124,7 @@ export async function POST(request: NextRequest) {
     )
 
     if (updateError) {
-      console.error("Failed to confirm user:", updateError)
+      log.error("[auth.verify-otp] failed to confirm user", updateError, { route: "auth.verify-otp" })
       return NextResponse.json(
         { error: "Failed to verify email" },
         { status: 500 }
@@ -132,7 +133,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true })
   } catch (error) {
-    console.error("Verify OTP API error:", error)
+    log.error("[auth.verify-otp] unhandled error", error, { route: "auth.verify-otp" })
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }

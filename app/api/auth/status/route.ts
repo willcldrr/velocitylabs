@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 import { createClient as createServerClient } from "@/lib/supabase/server"
 import { applyRateLimit } from "@/lib/api-rate-limit"
+import { log } from "@/lib/log"
 
 // Service role client bypasses RLS
 function getServiceSupabase() {
@@ -49,7 +50,7 @@ export async function GET(request: NextRequest) {
       canAccessDashboard: profile?.is_admin === true || business?.status === "active",
     })
   } catch (error) {
-    console.error("Auth status error:", error)
+    log.error("[auth.status] unhandled error", error, { route: "auth.status" })
     return NextResponse.json({ authenticated: false, error: "Internal error" }, { status: 500 })
   }
 }

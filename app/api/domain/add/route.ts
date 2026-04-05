@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
 import { applyRateLimit } from "@/lib/api-rate-limit"
 import { safeFetch } from "@/lib/safe-fetch"
+import { log } from "@/lib/log"
 
 export async function POST(request: NextRequest) {
   const limited = await applyRateLimit(request, { limit: 10, window: 60 })
@@ -69,7 +70,7 @@ export async function POST(request: NextRequest) {
         })
       }
 
-      console.error("Vercel API error:", data)
+      log.error("Vercel API error:", data)
       return NextResponse.json({
         success: false,
         error: data.error?.message || "Failed to add domain to Vercel",
@@ -83,7 +84,7 @@ export async function POST(request: NextRequest) {
       domain: data
     })
   } catch (error) {
-    console.error("Add domain error:", error)
+    log.error("Add domain error:", error)
     return NextResponse.json(
       { error: "Failed to add domain" },
       { status: 500 }

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 import { createClient as createServerClient } from "@/lib/supabase/server"
 import { applyRateLimit } from "@/lib/api-rate-limit"
+import { log } from "@/lib/log"
 
 // Service role client bypasses RLS
 const serviceSupabase = createClient(
@@ -76,7 +77,7 @@ export async function GET(request: NextRequest) {
     .range(from, to)
 
   if (dbError) {
-    console.error("Error fetching CRM leads:", dbError)
+    log.error("Error fetching CRM leads:", dbError)
     return NextResponse.json({ error: dbError.message }, { status: 500 })
   }
 
@@ -102,7 +103,7 @@ export async function POST(request: NextRequest) {
     .single()
 
   if (dbError) {
-    console.error("Error creating CRM lead:", dbError)
+    log.error("Error creating CRM lead:", dbError)
     return NextResponse.json({ error: dbError.message }, { status: 500 })
   }
 
@@ -135,7 +136,7 @@ export async function PATCH(request: NextRequest) {
     .select()
 
   if (dbError) {
-    console.error("Error updating CRM lead:", dbError)
+    log.error("Error updating CRM lead:", dbError)
     return NextResponse.json({ error: dbError.message }, { status: 500 })
   }
 
@@ -165,7 +166,7 @@ export async function DELETE(request: NextRequest) {
     .eq("id", id)
 
   if (dbError) {
-    console.error("Error deleting CRM lead:", dbError)
+    log.error("Error deleting CRM lead:", dbError)
     return NextResponse.json({ error: dbError.message }, { status: 500 })
   }
 

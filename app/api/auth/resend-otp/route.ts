@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 import { Resend } from "resend"
 import { applyAuthRateLimit } from "@/lib/auth-rate-limit"
+import { log } from "@/lib/log"
 import crypto from "crypto"
 
 const resend = new Resend(process.env.RESEND_API_KEY)
@@ -73,7 +74,7 @@ export async function POST(request: NextRequest) {
       })
 
     if (insertError) {
-      console.error("Failed to store OTP:", insertError)
+      log.error("[auth.resend-otp] failed to store OTP", insertError, { route: "auth.resend-otp", code: (insertError as any)?.code })
       return NextResponse.json(
         { error: "Failed to generate verification code" },
         { status: 500 }
@@ -99,7 +100,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true })
   } catch (error) {
-    console.error("Resend OTP API error:", error)
+    log.error("[auth.resend-otp] unhandled error", error, { route: "auth.resend-otp" })
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }

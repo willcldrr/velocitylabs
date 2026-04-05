@@ -4,6 +4,7 @@ import { createClient as createServiceClient } from "@supabase/supabase-js"
 import { createClient } from "@/lib/supabase/server"
 import { z } from "zod"
 import { applyRateLimit } from "@/lib/api-rate-limit"
+import { log } from "@/lib/log"
 
 const sendSmsSchema = z.object({
   to: z.string().min(10, "Phone number too short").max(20, "Phone number too long"),
@@ -73,7 +74,7 @@ export async function POST(request: NextRequest) {
       messageId: twilioMessage.sid,
     })
   } catch (error: any) {
-    console.error("Send SMS error:", error)
+    log.error("Send SMS error:", error)
     return NextResponse.json(
       { error: error.message || "Failed to send SMS" },
       { status: 500 }

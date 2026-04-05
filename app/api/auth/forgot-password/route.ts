@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 import { Resend } from "resend"
 import { applyAuthRateLimit } from "@/lib/auth-rate-limit"
+import { log } from "@/lib/log"
 import crypto from "crypto"
 
 const resend = new Resend(process.env.RESEND_API_KEY)
@@ -71,7 +72,7 @@ export async function POST(request: NextRequest) {
       })
 
     if (insertError) {
-      console.error("Failed to store OTP:", insertError)
+      log.error("[auth.forgot-password] failed to store OTP", insertError, { route: "auth.forgot-password", code: (insertError as any)?.code })
       return NextResponse.json(
         { error: "Failed to send reset code" },
         { status: 500 }
@@ -100,7 +101,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true })
   } catch (error) {
-    console.error("Forgot password API error:", error)
+    log.error("[auth.forgot-password] unhandled error", error, { route: "auth.forgot-password" })
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }

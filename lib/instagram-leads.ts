@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js"
+import { log } from "@/lib/log"
 
 function getSupabase() {
   return createClient(
@@ -67,7 +68,7 @@ export async function findOrCreateInstagramLead(
     .single()
 
   if (error) {
-    console.error("Error creating Instagram lead:", error)
+    log.error("Error creating Instagram lead:", error)
     return null
   }
 
@@ -98,7 +99,7 @@ export async function updateInstagramLead(
     .eq("id", leadId)
 
   if (error) {
-    console.error("Error updating Instagram lead:", error)
+    log.error("Error updating Instagram lead:", error)
     return false
   }
 

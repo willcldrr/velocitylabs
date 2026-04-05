@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { log } from "@/lib/log"
 
 // Simple in-memory rate limiting
 const attempts = new Map<string, { count: number; resetAt: number }>()
@@ -46,7 +47,7 @@ export async function POST(request: NextRequest) {
 
     const correctPassword = process.env.DEMO_PASSWORD
     if (!correctPassword) {
-      console.error('DEMO_PASSWORD environment variable is not set')
+      log.error('DEMO_PASSWORD environment variable is not set', undefined)
       return NextResponse.json({ valid: false }, { status: 500 })
     }
 

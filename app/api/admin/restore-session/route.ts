@@ -3,6 +3,7 @@ import { createClient as createServiceClient } from "@supabase/supabase-js"
 import { createClient as createCookieClient } from "@/lib/supabase/server"
 import { z } from "zod"
 import { applyRateLimit } from "@/lib/api-rate-limit"
+import { log } from "@/lib/log"
 
 const restoreSessionSchema = z.object({
   adminUserId: z.string().uuid("Invalid admin user ID format"),
@@ -123,7 +124,7 @@ export async function POST(request: NextRequest) {
       refresh_token: sessionData.session.refresh_token,
     })
   } catch (error) {
-    console.error("[Restore Admin Session] Error:", error)
+    log.error("[Restore Admin Session] Error:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }

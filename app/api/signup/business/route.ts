@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { createClient as createServiceClient } from "@supabase/supabase-js"
 import { createClient } from "@/lib/supabase/server"
 import { applyRateLimit } from "@/lib/api-rate-limit"
+import { log } from "@/lib/log"
 
 // Use service role to bypass RLS
 function getSupabaseService() {
@@ -51,7 +52,7 @@ export async function POST(request: NextRequest) {
       })
 
     if (profileError) {
-      console.error("Profile creation error:", profileError)
+      log.error("Profile creation error:", profileError)
       // Continue anyway - profile might already exist from auth trigger
     }
 
@@ -88,7 +89,7 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (businessError) {
-      console.error("Business creation error:", businessError)
+      log.error("Business creation error:", businessError)
       return NextResponse.json(
         { error: "Failed to create business" },
         { status: 500 }
@@ -97,7 +98,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true, businessId: business.id })
   } catch (error) {
-    console.error("Signup business API error:", error)
+    log.error("Signup business API error:", error)
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }

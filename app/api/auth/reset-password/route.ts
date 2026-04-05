@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 import { applyAuthRateLimit } from "@/lib/auth-rate-limit"
+import { log } from "@/lib/log"
 
 function getSupabase() {
   return createClient(
@@ -130,7 +131,7 @@ export async function POST(request: NextRequest) {
     )
 
     if (updateError) {
-      console.error("Failed to update password:", updateError)
+      log.error("[auth.reset-password] failed to update password", updateError, { route: "auth.reset-password" })
       return NextResponse.json(
         { error: "Failed to update password" },
         { status: 500 }
@@ -139,7 +140,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true })
   } catch (error) {
-    console.error("Reset password API error:", error)
+    log.error("[auth.reset-password] unhandled error", error, { route: "auth.reset-password" })
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }

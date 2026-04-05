@@ -3,6 +3,7 @@ import { sendInstagramMessage } from "@/lib/instagram"
 import { createClient } from "@/lib/supabase/server"
 import { applyRateLimit } from "@/lib/api-rate-limit"
 import { safeFetch } from "@/lib/safe-fetch"
+import { log } from "@/lib/log"
 
 /**
  * Debug endpoint to test Instagram setup
@@ -124,7 +125,7 @@ export async function POST(request: NextRequest) {
 
     const testMessage = message || "This is a test message from the Velocity Labs AI Assistant!"
 
-    console.log(`[Debug] Sending test message to ${recipientId}: ${testMessage}`)
+    log.info(`[Debug] Sending test message to ${recipientId}: ${testMessage}`)
 
     const result = await sendInstagramMessage(recipientId, testMessage)
 

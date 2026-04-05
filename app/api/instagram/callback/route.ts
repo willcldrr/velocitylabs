@@ -5,6 +5,7 @@ import { applyRateLimit } from "@/lib/api-rate-limit"
 import { encrypt } from "@/lib/crypto"
 import { safeFetch } from "@/lib/safe-fetch"
 import crypto from "crypto"
+import { log } from "@/lib/log"
 
 function getSupabase() {
   return createClient(
@@ -43,7 +44,7 @@ export async function GET(request: NextRequest) {
 
   // Handle OAuth errors
   if (error) {
-    console.error("[Instagram OAuth] Error:", error, errorDescription)
+    log.error("[Instagram OAuth] Error:", error, { v0: errorDescription })
     dashboardUrl.searchParams.set("instagram_error", errorDescription || error)
     return NextResponse.redirect(dashboardUrl)
   }
@@ -98,7 +99,7 @@ export async function GET(request: NextRequest) {
 
     if (!tokenResponse.ok) {
       const errorData = await tokenResponse.json()
-      console.error("[Instagram OAuth] Token exchange failed:", errorData)
+      log.error("[Instagram OAuth] Token exchange failed:", errorData)
       dashboardUrl.searchParams.set("instagram_error", "Failed to get access token")
       return NextResponse.redirect(dashboardUrl)
     }
@@ -120,7 +121,7 @@ export async function GET(request: NextRequest) {
 
     if (!longLivedResponse.ok) {
       const errorData = await longLivedResponse.json()
-      console.error("[Instagram OAuth] Long-lived token exchange failed:", errorData)
+      log.error("[Instagram OAuth] Long-lived token exchange failed:", errorData)
       dashboardUrl.searchParams.set("instagram_error", "Failed to get long-lived token")
       return NextResponse.redirect(dashboardUrl)
     }
@@ -136,7 +137,7 @@ export async function GET(request: NextRequest) {
     )
 
     if (!pagesResponse.ok) {
-      console.error("[Instagram OAuth] Failed to get pages")
+      log.error("[Instagram OAuth] Failed to get pages", undefined)
       dashboardUrl.searchParams.set("instagram_error", "Failed to get Facebook pages")
       return NextResponse.redirect(dashboardUrl)
     }
@@ -217,7 +218,7 @@ export async function GET(request: NextRequest) {
       })
 
     if (upsertError) {
-      console.error("[Instagram OAuth] Failed to store credentials:", upsertError)
+      log.error("[Instagram OAuth] Failed to store credentials:", upsertError)
       dashboardUrl.searchParams.set("instagram_error", "Failed to save connection")
       return NextResponse.redirect(dashboardUrl)
     }
@@ -228,7 +229,7 @@ export async function GET(request: NextRequest) {
     response.cookies.delete("instagram_oauth_state")
     return response
   } catch (err) {
-    console.error("[Instagram OAuth] Error:", err)
+    log.error("[Instagram OAuth] Error:", err)
     dashboardUrl.searchParams.set("instagram_error", "An unexpected error occurred")
     return NextResponse.redirect(dashboardUrl)
   }

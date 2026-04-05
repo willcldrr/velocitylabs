@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 import { z } from "zod"
 import { applyRateLimit } from "@/lib/api-rate-limit"
+import { log } from "@/lib/log"
 
 const impersonateSchema = z.object({
   userId: z.string().uuid("Invalid user ID format"),
@@ -71,7 +72,7 @@ export async function POST(request: NextRequest) {
     })
 
     if (linkError || !linkData) {
-      console.error("Failed to generate link:", linkError)
+      log.error("[admin.impersonate] generateLink failed", linkError, { route: "admin.impersonate" })
       return NextResponse.json({ error: "Failed to create session" }, { status: 500 })
     }
 
@@ -82,7 +83,7 @@ export async function POST(request: NextRequest) {
     })
 
     if (verifyError || !sessionData.session) {
-      console.error("Failed to verify token:", verifyError)
+      log.error("[admin.impersonate] verifyOtp failed", verifyError, { route: "admin.impersonate" })
       return NextResponse.json({ error: "Failed to create session" }, { status: 500 })
     }
 
@@ -106,7 +107,7 @@ export async function POST(request: NextRequest) {
       },
     })
   } catch (error) {
-    console.error("Impersonation error:", error)
+    log.error("[admin.impersonate] unhandled error", error, { route: "admin.impersonate" })
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }

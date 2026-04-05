@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js"
 import { createClient as createServerClient } from "@/lib/supabase/server"
 import { applyRateLimit } from "@/lib/api-rate-limit"
 import { encrypt } from "@/lib/crypto"
+import { log } from "@/lib/log"
 
 // Service role client bypasses RLS
 const serviceSupabase = createClient(
@@ -217,7 +218,7 @@ export async function DELETE(request: NextRequest) {
     .eq("id", businessId)
 
   if (dbError) {
-    console.error("Error deleting business:", dbError)
+    log.error("Error deleting business:", dbError)
     return NextResponse.json({ error: dbError.message }, { status: 500 })
   }
 

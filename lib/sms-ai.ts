@@ -10,6 +10,7 @@ import {
 import { buildPersonalityBlock } from "./ai/personalities"
 import { GUARDRAILS_BLOCK } from "./ai/guardrails"
 import { safeFetch, safeFetchAllowInternal } from "./safe-fetch"
+import { log } from "@/lib/log"
 
 function sanitizeCustomerMessage(message: string): string {
   return message
@@ -193,7 +194,7 @@ export async function generateAIResponse(
       }
     )
   } catch (aiError) {
-    console.error("[AI Response] Anthropic API call failed:", aiError)
+    log.error("[AI Response] Anthropic API call failed:", aiError)
 
     // Update lead to follow-up so business owner sees it needs attention
     await supabase.from("leads").update({ status: "followup" }).eq("id", leadId)
@@ -542,7 +543,7 @@ function parseAIResponseForData(
       }
 
     } catch (e) {
-      console.error("Failed to parse extracted data:", e)
+      log.error("Failed to parse extracted data:", e)
     }
 
     // Remove the [EXTRACTED] block from the response
@@ -600,7 +601,7 @@ async function generatePaymentLink(
 
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL
     if (!baseUrl) {
-      console.error("[AI Payment] NEXT_PUBLIC_APP_URL is not set — cannot generate payment link")
+      log.error("[AI Payment] NEXT_PUBLIC_APP_URL is not set — cannot generate payment link", undefined)
       return null
     }
 
@@ -630,16 +631,16 @@ async function generatePaymentLink(
           return data.checkoutUrl
         }
         lastError = await response.text()
-        console.error(`[AI Payment] Attempt ${attempt + 1} failed:`, lastError)
+        log.error(`[AI Payment] Attempt ${attempt + 1} failed:`, lastError)
       } catch (err: any) {
         lastError = err.message
-        console.error(`[AI Payment] Attempt ${attempt + 1} error:`, lastError)
+        log.error(`[AI Payment] Attempt ${attempt + 1} error:`, lastError)
       }
       if (attempt < 2) await new Promise(r => setTimeout(r, 1000))
     }
     return null
   } catch (error) {
-    console.error("Error generating payment link:", error)
+    log.error("Error generating payment link:", error)
     return null
   }
 }
@@ -673,7 +674,7 @@ export async function findOrCreateLead(userId: string, phoneNumber: string): Pro
     .single()
 
   if (error) {
-    console.error("Error creating lead:", error)
+    log.error("Error creating lead:", error)
     return null
   }
 
@@ -690,7 +691,7 @@ export async function saveMessage(userId: string, leadId: string, content: strin
   })
 
   if (error) {
-    console.error("Error saving message:", error)
+    log.error("Error saving message:", error)
   }
 }
 

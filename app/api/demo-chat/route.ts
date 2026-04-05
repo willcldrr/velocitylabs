@@ -3,6 +3,7 @@ import { generateResponse } from "@/lib/anthropic"
 import { applyRateLimit } from "@/lib/api-rate-limit"
 import { buildPersonalityBlock } from "@/lib/ai/personalities"
 import { GUARDRAILS_BLOCK } from "@/lib/ai/guardrails"
+import { log } from "@/lib/log"
 
 export const dynamic = "force-dynamic"
 
@@ -63,7 +64,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ response: result.content })
   } catch (error) {
-    console.error("[Demo Chat] Error:", error)
+    log.error("[Demo Chat] Error:", error)
     return NextResponse.json({ error: "Failed to generate response" }, { status: 500 })
   }
 }

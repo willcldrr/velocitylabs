@@ -10,6 +10,7 @@ import Stripe from "stripe"
 import { createClient } from "@supabase/supabase-js"
 import { applyRateLimit } from "@/lib/api-rate-limit"
 import { claimWebhookEvent, markWebhookEventProcessed } from "@/lib/webhook-idempotency"
+import { log } from "@/lib/log"
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2026-02-25.clover",
@@ -40,7 +41,7 @@ export async function POST(request: NextRequest) {
       process.env.STRIPE_WEBHOOK_SECRET!
     )
   } catch (err: any) {
-    console.error("Webhook signature verification failed:", err.message)
+    log.error("[stripe-webhook] signature verification failed", err, { route: "stripe-webhook" })
     return NextResponse.json({ error: "Invalid signature" }, { status: 400 })
   }
 
@@ -80,7 +81,7 @@ export async function POST(request: NextRequest) {
           const paidAmountCents = session.amount_total || 0
           if (Math.abs(paidAmountCents - expectedAmountCents) > 1) {
             // LB-8: amount mismatch is terminal — do NOT retry, mark processed.
-            console.error(`AMOUNT MISMATCH for booking ${bookingId}: paid ${paidAmountCents} cents, expected ${expectedAmountCents} cents`)
+            log.error("[stripe-webhook] amount mismatch (booking)", new Error("amount_mismatch"), { bookingId, paidCents: paidAmountCents, expectedCents: expectedAmountCents, route: "stripe-webhook" })
             await markWebhookEventProcessed(claim.rowId, "processed", "amount_mismatch")
             return NextResponse.json({ received: true, terminal: "amount_mismatch" })
           }
@@ -102,7 +103,7 @@ export async function POST(request: NextRequest) {
           throw error
         }
 
-        console.log(`Booking ${bookingId} deposit confirmed`)
+        log.info("[stripe-webhook] booking deposit confirmed", { bookingId, route: "stripe-webhook" })
 
         // Update lead status to booked
         const leadId = updatedBooking?.lead_id
@@ -131,7 +132,7 @@ export async function POST(request: NextRequest) {
             const expectedAmountCents = Math.round(invoice.total_amount * 100)
             const paidAmountCents = session.amount_total || 0
             if (Math.abs(paidAmountCents - expectedAmountCents) > 1) {
-              console.error(`AMOUNT MISMATCH for invoice ${invoiceId}: paid ${paidAmountCents} cents, expected ${expectedAmountCents} cents`)
+              log.error("[stripe-webhook] amount mismatch (invoice)", new Error("amount_mismatch"), { invoiceId, paidCents: paidAmountCents, expectedCents: expectedAmountCents, route: "stripe-webhook" })
               await markWebhookEventProcessed(claim.rowId, "processed", "amount_mismatch")
               return NextResponse.json({ received: true, terminal: "amount_mismatch" })
             }
@@ -149,7 +150,7 @@ export async function POST(request: NextRequest) {
             .eq("id", invoiceId)
 
           if (error) throw error
-          console.log(`Dashboard invoice ${invoiceId} marked as paid`)
+          log.info("[stripe-webhook] dashboard invoice marked paid", { invoiceId, route: "stripe-webhook" })
         } else {
           // Verify amount matches expected invoice total
           const { data: clientInvoice, error: clientLookupError } = await supabase
@@ -166,7 +167,7 @@ export async function POST(request: NextRequest) {
             const expectedAmountCents = Math.round(clientInvoice.total_amount * 100)
             const paidAmountCents = session.amount_total || 0
             if (Math.abs(paidAmountCents - expectedAmountCents) > 1) {
-              console.error(`AMOUNT MISMATCH for client invoice ${invoiceId}: paid ${paidAmountCents} cents, expected ${expectedAmountCents} cents`)
+              log.error("[stripe-webhook] amount mismatch (client invoice)", new Error("amount_mismatch"), { invoiceId, paidCents: paidAmountCents, expectedCents: expectedAmountCents, route: "stripe-webhook" })
               await markWebhookEventProcessed(claim.rowId, "processed", "amount_mismatch")
               return NextResponse.json({ received: true, terminal: "amount_mismatch" })
             }
@@ -184,7 +185,7 @@ export async function POST(request: NextRequest) {
             .eq("id", invoiceId)
 
           if (error) throw error
-          console.log(`Client invoice ${invoiceId} marked as paid`)
+          log.info("[stripe-webhook] client invoice marked paid", { invoiceId, route: "stripe-webhook" })
         }
       }
     }
@@ -196,7 +197,7 @@ export async function POST(request: NextRequest) {
     // Previously this path returned 200 { received: true } and dropped the
     // event. We now ledger as "failed" and return 500 so Stripe redelivers.
     const errorMessage = err instanceof Error ? err.message : String(err)
-    console.error("[stripe-webhook] internal error", { eventId: event.id, error: err }) // TODO(LB-7): replace with log.error + Sentry.captureException
+    log.error("[stripe-webhook] internal error", err, { eventId: event.id, route: "stripe-webhook" })
     await markWebhookEventProcessed(claim.rowId, "failed", errorMessage)
     return NextResponse.json({ error: "internal" }, { status: 500 })
   }

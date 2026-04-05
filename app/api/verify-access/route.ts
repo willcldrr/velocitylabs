@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 import { applyRateLimit } from "@/lib/api-rate-limit"
+import { log } from "@/lib/log"
 
 export async function POST(request: NextRequest) {
   const limited = await applyRateLimit(request, { limit: 10, window: 60 })
@@ -88,7 +89,7 @@ export async function POST(request: NextRequest) {
       { status: 401 }
     )
   } catch (error) {
-    console.error("Error verifying access code:", error)
+    log.error("Error verifying access code:", error)
     return NextResponse.json(
       { error: "Failed to verify access code" },
       { status: 500 }

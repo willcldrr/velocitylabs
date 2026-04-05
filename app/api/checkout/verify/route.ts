@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import Stripe from "stripe"
 import { createClient } from "@supabase/supabase-js"
 import { applyRateLimit } from "@/lib/api-rate-limit"
+import { log } from "@/lib/log"
 
 function getSupabase() {
   return createClient(
@@ -166,7 +167,7 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (bookingError) {
-      console.error("Error creating booking:", bookingError)
+      log.error("Error creating booking:", bookingError)
       return NextResponse.json(
         { error: "Failed to create booking: " + bookingError.message },
         { status: 500 }
@@ -201,7 +202,7 @@ export async function POST(request: NextRequest) {
     })
 
   } catch (error: any) {
-    console.error("Verify checkout error:", error)
+    log.error("Verify checkout error:", error)
     return NextResponse.json(
       { error: error.message || "Failed to verify payment" },
       { status: 500 }

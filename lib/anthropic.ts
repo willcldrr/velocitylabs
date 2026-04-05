@@ -1,4 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk"
+import { log } from "@/lib/log"
 
 // Hard ceiling for a single Anthropic call. Serverless functions can hang on
 // a stalled upstream connection and silently burn the entire function timeout
@@ -266,7 +267,7 @@ export async function generateResponse(
       escalationReason,
     }
   } catch (error: any) {
-    console.error("Anthropic API error:", error)
+    log.error("Anthropic API error:", error)
     throw new Error(`Anthropic API error: ${error.message}`)
   }
 }

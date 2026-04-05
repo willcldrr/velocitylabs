@@ -1,5 +1,6 @@
 import * as crypto from "crypto"
 import { safeFetch } from "./safe-fetch"
+import { log } from "@/lib/log"
 
 const GRAPH_API_VERSION = "v19.0"
 const GRAPH_API_BASE = `https://graph.facebook.com/${GRAPH_API_VERSION}`
@@ -55,7 +56,7 @@ export async function sendInstagramMessage(
   const accountId = credentials?.accountId || process.env.INSTAGRAM_ACCOUNT_ID
 
   if (!accessToken || !accountId) {
-    console.error("Instagram credentials not configured")
+    log.error("Instagram credentials not configured", undefined)
     return { success: false, error: "Instagram credentials not configured" }
   }
 
@@ -77,7 +78,7 @@ export async function sendInstagramMessage(
 
     if (!response.ok) {
       const errorData = await response.json()
-      console.error("Instagram API error:", errorData)
+      log.error("Instagram API error:", errorData)
       return {
         success: false,
         error: errorData.error?.message || "Failed to send message",
@@ -87,7 +88,7 @@ export async function sendInstagramMessage(
     const data: SendMessageResponse = await response.json()
     return { success: true, messageId: data.message_id }
   } catch (error) {
-    console.error("Error sending Instagram message:", error)
+    log.error("Error sending Instagram message:", error)
     return {
       success: false,
       error: error instanceof Error ? error.message : "Unknown error",
@@ -106,12 +107,12 @@ export function verifyWebhookSignature(
   const appSecret = process.env.INSTAGRAM_APP_SECRET
 
   if (!appSecret) {
-    console.error("INSTAGRAM_APP_SECRET not configured")
+    log.error("INSTAGRAM_APP_SECRET not configured", undefined)
     return false
   }
 
   if (!signature) {
-    console.error("No signature provided")
+    log.error("No signature provided", undefined)
     return false
   }
 
@@ -140,7 +141,7 @@ export async function getInstagramUserInfo(
   const accessToken = credentials?.accessToken || process.env.INSTAGRAM_ACCESS_TOKEN
 
   if (!accessToken) {
-    console.error("Instagram access token not configured")
+    log.error("Instagram access token not configured", undefined)
     return null
   }
 
@@ -151,7 +152,7 @@ export async function getInstagramUserInfo(
 
     if (!response.ok) {
       const errorData = await response.json()
-      console.error("Error fetching Instagram user info:", errorData)
+      log.error("Error fetching Instagram user info:", errorData)
       return null
     }
 
@@ -161,7 +162,7 @@ export async function getInstagramUserInfo(
       username: data.username || "",
     }
   } catch (error) {
-    console.error("Error fetching Instagram user info:", error)
+    log.error("Error fetching Instagram user info:", error)
     return null
   }
 }
@@ -212,7 +213,7 @@ export function parseInstagramWebhook(body: any): InstagramMessage | null {
       isEcho: messaging.message?.is_echo,
     }
   } catch (error) {
-    console.error("Error parsing Instagram webhook:", error)
+    log.error("Error parsing Instagram webhook:", error)
     return null
   }
 }
@@ -247,7 +248,7 @@ export async function markMessageSeen(
 
     return response.ok
   } catch (error) {
-    console.error("Error marking message as seen:", error)
+    log.error("Error marking message as seen:", error)
     return false
   }
 }
@@ -283,7 +284,7 @@ export async function sendTypingIndicator(
 
     return response.ok
   } catch (error) {
-    console.error("Error sending typing indicator:", error)
+    log.error("Error sending typing indicator:", error)
     return false
   }
 }

@@ -25,6 +25,7 @@
  */
 
 import { safeFetchAllowInternal } from "./safe-fetch"
+import { log } from "./log"
 
 // ─── Types ────────────────────────────────────────────────────────────────
 
@@ -160,14 +161,13 @@ function createRateLimiter(): RateLimiterBackend {
   const url = process.env.UPSTASH_REDIS_REST_URL
   const token = process.env.UPSTASH_REDIS_REST_TOKEN
   if (url && token) {
-    // TODO(LB-7): replace console.info with structured logger once Wave 2-D lands.
-    console.info("[rate-limit] backend=upstash (shared store)")
+    log.info("[rate-limit] backend selected", { backend: "upstash" })
     return makeUpstashBackend(url, token)
   }
-  // TODO(LB-7): replace console.info with structured logger once Wave 2-D lands.
-  console.info(
-    "[rate-limit] backend=in-memory (per-instance, DEV ONLY — set UPSTASH_REDIS_REST_URL + UPSTASH_REDIS_REST_TOKEN in production)"
-  )
+  log.warn("[rate-limit] backend selected", {
+    backend: "in-memory",
+    note: "per-instance, DEV ONLY — set UPSTASH_REDIS_REST_URL + UPSTASH_REDIS_REST_TOKEN in production",
+  })
   return inMemoryBackend
 }
 
@@ -199,8 +199,7 @@ export async function checkRateLimit(
     return { success: r.allowed, remaining: r.remaining, resetAt: r.resetAt }
   } catch (err) {
     if (activeBackend.name !== "in-memory") {
-      // TODO(LB-7): structured logger.
-      console.error("[rate-limit] backend error, falling back to in-memory:", (err as Error).message)
+      log.error("[rate-limit] backend error, falling back to in-memory", err, { backend: activeBackend.name })
       const r = await inMemoryBackend.check(identifier, config.limit, config.windowSeconds)
       return { success: r.allowed, remaining: r.remaining, resetAt: r.resetAt }
     }

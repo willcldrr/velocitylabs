@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
 import { getGoogleCalendarClient } from "@/lib/crm/google-calendar"
 import { applyRateLimit } from "@/lib/api-rate-limit"
+import { log } from "@/lib/log"
 
 export async function POST(request: NextRequest) {
   const limited = await applyRateLimit(request, { limit: 30, window: 60 })
@@ -111,7 +112,7 @@ export async function POST(request: NextRequest) {
             meetLink = createdEvent.hangoutLink
           }
         } catch (googleError: any) {
-          console.error("Google Calendar sync error:", googleError)
+          log.error("Google Calendar sync error:", googleError)
           // Continue without Google sync - don't fail the whole request
         }
       }
@@ -144,7 +145,7 @@ export async function POST(request: NextRequest) {
       meet_link: meetLink,
     })
   } catch (error: any) {
-    console.error("Create event error:", error)
+    log.error("Create event error:", error)
     return NextResponse.json(
       { error: error.message || "Failed to create event" },
       { status: 500 }

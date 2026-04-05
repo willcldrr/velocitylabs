@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 import { fetchAndParseIcal, filterRelevantEvents } from "@/lib/ical-parser"
 import { applyRateLimit } from "@/lib/api-rate-limit"
+import { log } from "@/lib/log"
 
 // Use service role for cron jobs (no user context)
 const supabase = createClient(
@@ -24,7 +25,7 @@ export async function GET(request: NextRequest) {
     const cronSecret = process.env.CRON_SECRET
 
     if (!cronSecret) {
-      console.error("CRON_SECRET not configured")
+      log.error("CRON_SECRET not configured", undefined)
       return NextResponse.json({ error: "Server misconfigured" }, { status: 500 })
     }
     if (authHeader !== `Bearer ${cronSecret}`) {
@@ -38,7 +39,7 @@ export async function GET(request: NextRequest) {
       .not("turo_ical_url", "is", null)
 
     if (vehiclesError) {
-      console.error("Error fetching vehicles:", vehiclesError)
+      log.error("Error fetching vehicles:", vehiclesError)
       return NextResponse.json({ error: "Failed to fetch vehicles" }, { status: 500 })
     }
 
@@ -86,7 +87,7 @@ export async function GET(request: NextRequest) {
 
         successCount++
       } catch (err) {
-        console.error(`Cron sync error for vehicle ${vehicle.id}:`, err)
+        log.error(`Cron sync error for vehicle ${vehicle.id}:`, err)
         errorCount++
       }
     }
@@ -99,7 +100,7 @@ export async function GET(request: NextRequest) {
       timestamp: new Date().toISOString(),
     })
   } catch (error) {
-    console.error("Cron calendar sync error:", error)
+    log.error("Cron calendar sync error:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }

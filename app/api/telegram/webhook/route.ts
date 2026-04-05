@@ -8,6 +8,7 @@ import {
 import { applyRateLimit } from "@/lib/api-rate-limit"
 import { claimWebhookEvent } from "@/lib/webhook-idempotency"
 import { safeFetch } from "@/lib/safe-fetch"
+import { log } from "@/lib/log"
 
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN
 
@@ -17,7 +18,7 @@ function verifyTelegramRequest(request: NextRequest): boolean {
   // If TELEGRAM_WEBHOOK_SECRET is set, verify the header
   const webhookSecret = process.env.TELEGRAM_WEBHOOK_SECRET
   if (!webhookSecret) {
-    console.error("[Telegram] TELEGRAM_WEBHOOK_SECRET not set - rejecting unverified request")
+    log.error("[telegram.webhook] TELEGRAM_WEBHOOK_SECRET not set", new Error("missing_secret"), { route: "telegram.webhook" })
     return false
   }
 
@@ -49,7 +50,7 @@ interface TelegramUpdate {
 // Send message via Telegram API
 async function sendTelegramMessage(chatId: string | number, text: string) {
   if (!TELEGRAM_BOT_TOKEN) {
-    console.error("TELEGRAM_BOT_TOKEN not configured")
+    log.error("[telegram.webhook] TELEGRAM_BOT_TOKEN not configured", new Error("missing_bot_token"), { route: "telegram.webhook" })
     return
   }
 
@@ -69,11 +70,12 @@ async function sendTelegramMessage(chatId: string | number, text: string) {
     )
 
     if (!response.ok) {
-      const error = await response.text()
-      console.error("Telegram API error:", error)
+      // Do not log raw Telegram error body (may echo chat ids / usernames).
+      await response.text().catch(() => null)
+      log.error("[telegram.webhook] api error", new Error("telegram_api_error"), { status: response.status, route: "telegram.webhook" })
     }
   } catch (error) {
-    console.error("Error sending Telegram message:", error)
+    log.error("[telegram.webhook] send failed", error, { route: "telegram.webhook" })
   }
 }
 
@@ -83,7 +85,7 @@ export async function POST(request: NextRequest) {
 
   // Verify the request is from Telegram
   if (!verifyTelegramRequest(request)) {
-    console.error("[Telegram] Invalid webhook secret")
+    log.warn("[telegram.webhook] invalid webhook secret", { route: "telegram.webhook" })
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
@@ -154,7 +156,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ ok: true })
   } catch (error) {
-    console.error("Telegram webhook error:", error)
+    log.error("[telegram.webhook] unhandled error", error, { route: "telegram.webhook" })
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }

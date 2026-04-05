@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js"
 import { applyRateLimit } from "@/lib/api-rate-limit"
 import { generateResponse, type ChatMessage } from "@/lib/anthropic"
 import { sendInstagramMessage, type InstagramCredentials } from "@/lib/instagram"
+import { log } from "@/lib/log"
 
 export const dynamic = "force-dynamic"
 
@@ -50,7 +51,7 @@ export async function GET(request: NextRequest) {
   const authHeader = request.headers.get("authorization")
   const cronSecret = process.env.CRON_SECRET
   if (!cronSecret) {
-    console.error("[Follow-Up] CRON_SECRET not configured")
+    log.error("[Follow-Up] CRON_SECRET not configured", undefined)
     return NextResponse.json({ error: "Server misconfigured" }, { status: 500 })
   }
   if (authHeader !== `Bearer ${cronSecret}`) {
@@ -104,7 +105,7 @@ export async function GET(request: NextRequest) {
       .lt("last_message_time", cutoff)
 
     if (queryError) {
-      console.error("[Follow-Up] Query error:", queryError)
+      log.error("[Follow-Up] Query error:", queryError)
       return NextResponse.json(
         { error: "Database query failed", detail: queryError.message },
         { status: 500 }
@@ -156,7 +157,7 @@ export async function GET(request: NextRequest) {
           .limit(MAX_FOLLOW_UPS + 1)
 
         if (msgError) {
-          console.error(`[Follow-Up] Message query failed for lead ${lead.id}:`, msgError)
+          log.error(`[Follow-Up] Message query failed for lead ${lead.id}:`, msgError)
           summary.errors++
           continue
         }
@@ -205,13 +206,13 @@ export async function GET(request: NextRequest) {
           })
           followUpText = aiResult.content
         } catch (aiError) {
-          console.error(`[Follow-Up] AI generation failed for lead ${lead.id}:`, aiError)
+          log.error(`[Follow-Up] AI generation failed for lead ${lead.id}:`, aiError)
           summary.errors++
           continue
         }
 
         if (!followUpText || followUpText.trim().length === 0) {
-          console.warn(`[Follow-Up] Empty AI response for lead ${lead.id}`)
+          log.warn(`[Follow-Up] Empty AI response for lead ${lead.id}`)
           summary.errors++
           continue
         }
@@ -240,10 +241,7 @@ export async function GET(request: NextRequest) {
         )
 
         if (!sendResult.success) {
-          console.error(
-            `[Follow-Up] Instagram send failed for lead ${lead.id}:`,
-            sendResult.error
-          )
+          log.error(`[Follow-Up] Instagram send failed for lead ${lead.id}:`, sendResult.error)
           summary.errors++
           continue
         }
@@ -257,7 +255,7 @@ export async function GET(request: NextRequest) {
         })
 
         if (saveError) {
-          console.error(`[Follow-Up] Failed to save message for lead ${lead.id}:`, saveError)
+          log.error(`[Follow-Up] Failed to save message for lead ${lead.id}:`, saveError)
           // Message was sent but not recorded — count as partial error
           summary.errors++
           continue
@@ -273,15 +271,13 @@ export async function GET(request: NextRequest) {
           })
           .eq("id", lead.id)
 
-        console.log(
-          `[Follow-Up] Sent follow-up to lead ${lead.id} (${lead.name}) — ` +
+        log.info(`[Follow-Up] Sent follow-up to lead ${lead.id} (${lead.name}) — ` +
             `status=${lead.status}, hours_stale=${hoursSinceLastMessage}, ` +
-            `consecutive_outbound=${consecutiveOutbound + 1}`
-        )
+            `consecutive_outbound=${consecutiveOutbound + 1}`)
 
         summary.followedUp++
       } catch (leadError) {
-        console.error(`[Follow-Up] Unexpected error for lead ${lead.id}:`, leadError)
+        log.error(`[Follow-Up] Unexpected error for lead ${lead.id}:`, leadError)
         summary.errors++
       }
     }
@@ -291,7 +287,7 @@ export async function GET(request: NextRequest) {
       ...summary,
     })
   } catch (error) {
-    console.error("[Follow-Up] Fatal error:", error)
+    log.error("[Follow-Up] Fatal error:", error)
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }

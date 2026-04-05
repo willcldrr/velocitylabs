@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import twilio from "twilio"
 import { createClient } from "@/lib/supabase/server"
 import { applyRateLimit } from "@/lib/api-rate-limit"
+import { log } from "@/lib/log"
 
 function getTwilioClient() {
   return twilio(
@@ -38,7 +39,7 @@ export async function GET(request: NextRequest) {
       phoneNumber: process.env.TWILIO_PHONE_NUMBER,
     })
   } catch (error: any) {
-    console.error("Twilio test error:", error)
+    log.error("Twilio test error:", error)
     return NextResponse.json(
       {
         success: false,

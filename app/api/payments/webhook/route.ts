@@ -11,6 +11,7 @@ import { generateResponse, ChatMessage } from "@/lib/anthropic"
 import { sendInstagramMessage } from "@/lib/instagram"
 import { applyRateLimit } from "@/lib/api-rate-limit"
 import { claimWebhookEvent, markWebhookEventProcessed } from "@/lib/webhook-idempotency"
+import { log } from "@/lib/log"
 
 function getStripe() {
   return new Stripe(process.env.STRIPE_SECRET_KEY!, {
@@ -84,7 +85,7 @@ DO NOT include any [EXTRACTED] blocks or special markers. Just write the natural
 
     return result.content
   } catch (error) {
-    console.error("Error generating AI response:", error)
+    log.error("[payments.webhook] ai confirmation generation failed", error, { route: "payments.webhook" })
     // Fallback to a standard message if AI fails
     return `Your deposit of $${depositAmount} has been confirmed! Your ${vehicleName} is reserved for ${startDate} to ${endDate}. We'll be in touch with pickup details soon. Thanks for booking with us!`
   }
@@ -113,7 +114,7 @@ export async function POST(request: NextRequest) {
       process.env.STRIPE_WEBHOOK_SECRET!
     )
   } catch (err: any) {
-    console.error("Webhook signature verification failed:", err.message)
+    log.error("[payments.webhook] signature verification failed", err, { route: "payments.webhook" })
     return NextResponse.json({ error: "Invalid signature" }, { status: 400 })
   }
 
@@ -128,12 +129,12 @@ export async function POST(request: NextRequest) {
   if (event.type === "checkout.session.completed") {
     const session = event.data.object as Stripe.Checkout.Session
 
-    console.log("Payment successful for session:", session.id)
+    log.info("[payments.webhook] checkout session completed", { sessionId: session.id, route: "payments.webhook" })
 
     const metadata = session.metadata
     if (!metadata) {
       // LB-8: terminal — nothing to process. Mark the ledger so we never retry.
-      console.error("No metadata in session")
+      log.error("[payments.webhook] no metadata in session", new Error("no_metadata"), { sessionId: session.id, route: "payments.webhook" })
       await markWebhookEventProcessed(claim.rowId, "processed", "no_metadata")
       return NextResponse.json({ received: true, terminal: "no_metadata" })
     }
@@ -151,7 +152,7 @@ export async function POST(request: NextRequest) {
     // Validate required fields
     if (!vehicleId || !startDate || !endDate) {
       // LB-8: terminal — malformed metadata cannot be salvaged by retry.
-      console.error("Missing required metadata fields:", { vehicleId, startDate, endDate })
+      log.error("[payments.webhook] missing metadata fields", new Error("missing_metadata"), { hasVehicleId: !!vehicleId, hasStartDate: !!startDate, hasEndDate: !!endDate, route: "payments.webhook" })
       await markWebhookEventProcessed(claim.rowId, "processed", "missing_metadata")
       return NextResponse.json({ received: true, terminal: "missing_metadata" })
     }
@@ -201,19 +202,19 @@ export async function POST(request: NextRequest) {
 
       if (!userId) {
         // LB-8: terminal — we cannot route this payment to any tenant.
-        console.error("Could not determine user_id for booking")
+        log.error("[payments.webhook] could not determine user_id", new Error("no_user_id"), { sessionId: session.id, route: "payments.webhook" })
         await markWebhookEventProcessed(claim.rowId, "processed", "no_user_id")
         return NextResponse.json({ received: true, terminal: "no_user_id" })
       }
 
-      console.log("Creating booking with userId:", userId, "vehicleId:", vehicleId)
+      log.info("[payments.webhook] creating booking", { route: "payments.webhook" })
 
       // Verify the paid amount matches the expected deposit
       const paidAmountCents = session.amount_total || 0
       const expectedDepositCents = Math.round(depositAmount * 100)
       if (Math.abs(paidAmountCents - expectedDepositCents) > 1) {
         // LB-8: terminal — amount mismatch is not fixable by retry.
-        console.error(`AMOUNT MISMATCH: paid ${paidAmountCents} cents, expected ${expectedDepositCents} cents for vehicle ${vehicleId}`)
+        log.error("[payments.webhook] amount mismatch", new Error("amount_mismatch"), { paidCents: paidAmountCents, expectedCents: expectedDepositCents, route: "payments.webhook" })
         await markWebhookEventProcessed(claim.rowId, "processed", "amount_mismatch")
         return NextResponse.json({ received: true, terminal: "amount_mismatch" })
       }
@@ -247,7 +248,7 @@ export async function POST(request: NextRequest) {
         isInstagramLeadForSend = !!lead?.instagram_user_id
       } catch (lookupErr) {
         // Non-fatal — message will use fallback names. Let the RPC proceed.
-        console.error("[payments/webhook] vehicle/ai_settings lookup failed (non-fatal)", lookupErr)
+        log.error("[payments.webhook] vehicle/ai_settings lookup failed (non-fatal)", lookupErr, { route: "payments.webhook" })
       }
 
       const channel: "sms" | "instagram" = isInstagramLeadForSend ? "instagram" : "sms"
@@ -304,7 +305,7 @@ export async function POST(request: NextRequest) {
         // TODO(HP-2): queue a pending_notifications row so the refund + apology
         // SMS can be dispatched from a cron instead of being dropped here.
         if (msg.includes("booking_conflict")) {
-          console.error("[payments/webhook] booking_conflict (LB-5a)", { sessionId: session.id, vehicleId, startDate, endDate })
+          log.error("[payments.webhook] booking_conflict (LB-5a)", rpcError, { sessionId: session.id, route: "payments.webhook" })
           await markWebhookEventProcessed(claim.rowId, "processed", "booking_conflict")
           return NextResponse.json(
             { error: "booking_conflict", message: "vehicle already booked for those dates" },
@@ -315,7 +316,7 @@ export async function POST(request: NextRequest) {
         throw rpcError
       }
 
-      console.log("Booking created via RPC:", rpcBookingId)
+      log.info("[payments.webhook] booking created", { bookingId: rpcBookingId, route: "payments.webhook" })
 
       // LB-5b: Twilio/Instagram confirmation send stays AFTER the RPC. If the
       // provider is down the RPC already committed (customer is paid + booked
@@ -324,7 +325,7 @@ export async function POST(request: NextRequest) {
       // TODO(HP-2): write a `pending_notifications` row on send failure and
       // retry from a cron so the customer always eventually hears back.
       try {
-        console.log(`Sending ${channel} confirmation:`, confirmationMessage)
+        log.info("[payments.webhook] sending confirmation", { channel, route: "payments.webhook" })
 
         // Send via the appropriate channel. The message row was ALREADY
         // persisted inside the LB-5b RPC; this block only does the physical
@@ -332,9 +333,9 @@ export async function POST(request: NextRequest) {
         if (isInstagramLeadForSend && lead?.instagram_user_id) {
           const result = await sendInstagramMessage(lead.instagram_user_id, confirmationMessage)
           if (result.success) {
-            console.log("Instagram confirmation sent successfully, messageId:", result.messageId)
+            log.info("[payments.webhook] instagram confirmation sent", { route: "payments.webhook" })
           } else {
-            console.error("Failed to send Instagram confirmation:", result.error)
+            log.error("[payments.webhook] instagram confirmation send failed", new Error(result.error || "unknown"), { route: "payments.webhook" })
           }
         } else if (customerPhone || lead?.phone) {
           const twilio = await import("twilio")
@@ -349,12 +350,12 @@ export async function POST(request: NextRequest) {
             to: customerPhone || lead?.phone,
           })
 
-          console.log("SMS confirmation sent successfully")
+          log.info("[payments.webhook] sms confirmation sent", { route: "payments.webhook" })
         }
       } catch (confirmationError) {
         // LB-5b: send failure is non-fatal — booking is already committed.
         // TODO(HP-2): enqueue pending_notifications row for cron retry.
-        console.error("Error sending AI confirmation (non-fatal, booking already committed):", confirmationError)
+        log.error("[payments.webhook] confirmation send failed (non-fatal)", confirmationError, { route: "payments.webhook" })
       }
 
     } catch (error) {
@@ -363,7 +364,7 @@ export async function POST(request: NextRequest) {
       // as "failed" and return 500 so Stripe redelivers, unless we already
       // returned early above with a terminal reason.
       const errorMessage = error instanceof Error ? error.message : String(error)
-      console.error("[payments/webhook] internal error", { eventId: event.id, error }) // TODO(LB-7): replace with log.error + Sentry.captureException
+      log.error("[payments.webhook] internal error", error, { eventId: event.id, route: "payments.webhook" })
       await markWebhookEventProcessed(claim.rowId, "failed", errorMessage)
       return NextResponse.json({ error: "internal" }, { status: 500 })
     }

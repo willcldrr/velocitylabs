@@ -8,6 +8,7 @@ import {
 } from "@/lib/sms-ai"
 import { applyRateLimit } from "@/lib/api-rate-limit"
 import { claimWebhookEvent, markWebhookEventProcessed } from "@/lib/webhook-idempotency"
+import { log } from "@/lib/log"
 
 function getTwilioClient() {
   return twilio(
@@ -32,13 +33,13 @@ function validateTwilioSignature(
 ): boolean {
   const authToken = process.env.TWILIO_AUTH_TOKEN
   if (!authToken) {
-    console.error("TWILIO_AUTH_TOKEN not configured")
+    log.error("[sms.webhook] TWILIO_AUTH_TOKEN not configured", new Error("missing_auth_token"), { route: "sms.webhook" })
     return false
   }
 
   const signature = request.headers.get("x-twilio-signature")
   if (!signature) {
-    console.error("Missing X-Twilio-Signature header")
+    log.warn("[sms.webhook] missing x-twilio-signature header", { route: "sms.webhook" })
     return false
   }
 
@@ -49,7 +50,7 @@ function validateTwilioSignature(
   const isValid = twilio.validateRequest(authToken, signature, url, params)
 
   if (!isValid) {
-    console.error("Invalid Twilio signature - request may be spoofed")
+    log.warn("[sms.webhook] invalid twilio signature (possible spoof)", { route: "sms.webhook" })
   }
 
   return isValid
@@ -117,14 +118,14 @@ export async function POST(request: NextRequest) {
     // Look up the user by the Twilio number they received the SMS on
     const userId = await getUserIdByPhoneNumber(to)
     if (!userId) {
-      console.error(`No user configured for phone number: ${to}`)
+      log.warn("[sms.webhook] no user for phone", { phoneSuffix: to.slice(-4), route: "sms.webhook" })
       return new NextResponse("No user configured for this number", { status: 404 })
     }
 
     // Find or create the lead
     const lead = await findOrCreateLead(userId, from)
     if (!lead) {
-      console.error("Could not find or create lead")
+      log.error("[sms.webhook] could not find or create lead", new Error("lead_create_failed"), { route: "sms.webhook" })
       return new NextResponse("Lead error", { status: 500 })
     }
 
@@ -160,7 +161,7 @@ export async function POST(request: NextRequest) {
     })
 
     // Log without PII
-    console.log(`SMS response sent [Model: ${aiResult.model}, Cost: $${aiResult.cost.totalCost.toFixed(4)}]`)
+    log.info("[sms.webhook] ai response sent", { model: aiResult.model, route: "sms.webhook" })
 
     // Return TwiML response (Twilio expects this)
     const twiml = `<?xml version="1.0" encoding="UTF-8"?><Response></Response>`
@@ -173,7 +174,7 @@ export async function POST(request: NextRequest) {
       },
     })
   } catch (error) {
-    console.error("SMS webhook error:", error)
+    log.error("[sms.webhook] unhandled error", error, { route: "sms.webhook" })
     return new NextResponse("Internal error", { status: 500 })
   }
 }
