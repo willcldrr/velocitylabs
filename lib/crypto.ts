@@ -87,7 +87,12 @@ export function encrypt(plaintext: string): EncryptedPayload {
  * has changed since encryption.
  */
 export function decrypt(payload: EncryptedPayload): string {
-  if (!payload || !payload.ciphertext || !payload.iv || !payload.tag) {
+  if (
+    !payload ||
+    typeof payload.ciphertext !== "string" ||
+    typeof payload.iv !== "string" ||
+    typeof payload.tag !== "string"
+  ) {
     throw new Error("decrypt() requires { ciphertext, iv, tag }")
   }
 

@@ -120,9 +120,15 @@ async function validateUrl(url: string, blockPrivate: boolean): Promise<void> {
   }
 
   // If hostname is already an IP literal, check it directly.
-  if (isIP(hostname)) {
-    if (isBlockedIp(hostname)) {
-      throw new SsrfBlockedError(`Blocked IP: ${hostname}`)
+  // URL.hostname returns IPv6 literals wrapped in brackets (`[::1]`); strip
+  // them before calling isIP() or the literal guard becomes dead code for v6.
+  const bareHost =
+    hostname.startsWith("[") && hostname.endsWith("]")
+      ? hostname.slice(1, -1)
+      : hostname
+  if (isIP(bareHost)) {
+    if (isBlockedIp(bareHost)) {
+      throw new SsrfBlockedError(`Blocked IP: ${bareHost}`)
     }
     return
   }

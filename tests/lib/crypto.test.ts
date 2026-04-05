@@ -26,14 +26,9 @@ async function loadCrypto() {
 }
 
 describe("encrypt/decrypt round-trip", () => {
-  // BLOCKED: empty-string round-trip fails because `decrypt()` guards with
-  // `!payload.ciphertext`, which rejects the empty base64 string produced by
-  // encrypting "". See .audit/remediation-status.md "BLOCKED" section. Test
-  // documents the current behavior (not the intended round-trip contract).
-  it("empty string currently throws on decrypt (BLOCKED bug)", async () => {
+  it("empty string round-trips", async () => {
     const { encrypt, decrypt } = await loadCrypto()
-    const payload = encrypt("")
-    expect(() => decrypt(payload)).toThrow(/requires \{ ciphertext, iv, tag \}/)
+    expect(decrypt(encrypt(""))).toBe("")
   })
 
   it("ASCII string", async () => {

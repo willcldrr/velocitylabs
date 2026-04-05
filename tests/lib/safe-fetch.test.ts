@@ -48,20 +48,14 @@ describe("scheme + literal blocks (no DNS)", () => {
     await expect(safeFetch("http://127.0.0.1/x")).rejects.toThrow(/Blocked IP/)
   })
 
-  // BLOCKED: safe-fetch.ts does not strip `[`/`]` before calling
-  // `isIP(hostname)`, so bracketed IPv6 literals like `[::1]` fail the literal
-  // check and fall through to DNS resolution. In practice DNS usually rejects
-  // them too, but this means the literal `::1`/`fc00::1` guards are dead code.
-  // See .audit/remediation-status.md BLOCKED section. These tests lock in the
-  // CURRENT behavior (fall-through to DNS) rather than the intended behavior.
-  it("IPv6 bracketed literals fall through to DNS (BLOCKED: bracket strip missing)", async () => {
+  it("rejects http://[::1] (bracketed IPv6 loopback literal)", async () => {
     const { safeFetch } = await loadSafeFetch()
-    // DNS fails for a bracketed hostname — confirm we end up in the DNS
-    // failure branch rather than the literal-IP rejection branch.
-    lookupMock.mockRejectedValueOnce(new Error("ENOTFOUND"))
-    await expect(safeFetch("http://[::1]/x")).rejects.toThrow(
-      /DNS lookup failed|ENOTFOUND/
-    )
+    await expect(safeFetch("http://[::1]/x")).rejects.toThrow(/Blocked IP/)
+  })
+
+  it("rejects http://[fc00::1] (bracketed IPv6 ULA literal)", async () => {
+    const { safeFetch } = await loadSafeFetch()
+    await expect(safeFetch("http://[fc00::1]/x")).rejects.toThrow(/Blocked IP/)
   })
 })
 
